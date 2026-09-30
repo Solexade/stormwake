@@ -48,19 +48,19 @@ npm.cmd start
 
 The original project's folder name stays `vibe-shattered-isles` to preserve local launch paths. The public game identity is **Stormwake: The Shattered Isles**.
 
-## Storage and deployment boundary
+## Local SQLite preview
 
 `data/isles.sqlite` stores guests, completed expeditions and shared progress. It is excluded from version control. Cookie loss means loss of access to that guest profile; link a wallet at Hearthhall before losing the cookie to recover that profile on another browser. Active runs are in memory and end on server restart; completed results survive.
 
 This server needs a **persistent Node process and persistent disk**. It is not suitable for deployment unchanged to Vercel Functions: the live game tick and local SQLite need a long-running server. Use one server instance behind HTTPS, with `HOST=0.0.0.0`, `NODE_ENV=production`, and `DATA_DIR` pointing at a backed-up persistent volume. Production cookies require HTTPS. Multi-instance scaling needs a shared database and a run-owner/coordinator design.
 
-No public hosting, domain, external account, or paid infrastructure has been created. The local preview is only accessible on this machine.
+The local preview is only accessible on this machine. The Vercel cloud backend described below uses Postgres instead.
 
 Before a public reward-bearing launch: add durable identity, abuse controls for guest creation, bot detection, operational monitoring and backups, load testing, and hosted deployment. Server-side game rules stop arbitrary score submissions but are not a complete anti-cheat system. Guest leaderboards are for playtesting and cannot establish unique humans.
 
 ## Not yet implemented
 
-Real-time co-op, wallet sign-in, blockchain achievements, token rewards or conversion, permanent weapon upgrades, extra islands and production hosting. No token or financial reward is promised.
+Real-time co-op, minted blockchain achievements, token rewards or conversion, and extra islands. No token or financial reward is promised.
 
 ## Tests
 
