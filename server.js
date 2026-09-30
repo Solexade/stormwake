@@ -128,8 +128,9 @@ const server=http.createServer(async(req,res)=>{
         db.prepare('UPDATE players SET name=? WHERE id=?').run(name,p.id);return json(res,200,{player:profile({...p,name})});
       }
       if(req.method==='POST'&&url.pathname==='/api/start'){
-        let s=runs.get(p.id);if(!s||s.status!=='active'){s=createRun(randomUUID(),Date.now(),profile(p));runs.set(p.id,s);}s.inSafehouse=false;return json(res,200,{run:snapshot(s)});
+        let s=runs.get(p.id);if(!s||s.status!=='active'){s=createRun(randomUUID(),Date.now(),profile(p));runs.set(p.id,s);}s.inSafehouse=false;s.paused=false;return json(res,200,{run:snapshot(s)});
       }
+      if(req.method==='POST'&&url.pathname==='/api/pause'){const s=runs.get(p.id);if(s?.status==='active'){s.paused=b.paused===true;s.input={};s.commands={};s.held={};s.player.vx=s.player.vy=0;s.lastInputAt=Date.now();}return json(res,200,{run:s?snapshot(s):null});}
       if(req.method==='POST'&&url.pathname==='/api/input'){
         const s=runs.get(p.id);if(!s||s.status!=='active')return json(res,200,{run:s?snapshot(s):null});
         setInput(s,b);return json(res,200,{run:snapshot(s)});

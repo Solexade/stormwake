@@ -105,3 +105,8 @@ Cloud profiles, sessions, wallets, gear, potions, active expedition snapshots, c
 The server advances combat from elapsed wall-clock time on each input request, with bounded catch-up after connection loss. Browser requests never supply trusted scores or damage. PostgreSQL row locks serialize updates for a player, and extraction rewards are committed with the run state to prevent double credit. Database storage and function usage remain subject to the hosting account quotas.
 
 The local npm start preview still uses SQLite and a continuous game loop. Local guest data is not automatically uploaded to cloud production.
+
+## Focused play update
+Starting or resuming an expedition enters a viewport-sized play mode with no page scrolling or permanent story sidebar. Wallet, Tasks and Pause remain available at the top. Pause/Tasks freezes server combat and expedition time; closing resumes the run. Return to harbour is available in Pause. Reduced motion quiets water/boat motion, and sound, blood effects and graphics controls are available in Pause. Touch layouts adapt to portrait and landscape with safe-area spacing. Normal movement is 260 units/s and sprint is 370, with faster acceleration/braking, longer strides, turn lean and bounded collision-aware visual extrapolation.
+
+This remains a stylized solo prototype. Additional islands, daily quests, motion-captured animations and real-device mobile performance validation are future work; no token rewards are promised.
