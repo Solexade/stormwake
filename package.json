@@ -1,0 +1,24 @@
+{
+  "name": "stormwake",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "test:playthrough": "node scripts/playthrough.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "pg-mem": "^3.0.14",
+    "three": "0.180.0"
+  },
+  "dependencies": {
+    "@vercel/functions": "3.9.9",
+    "pg": "8.16.3",
+    "viem": "2.57.0"
+  }
+}
