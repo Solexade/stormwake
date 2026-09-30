@@ -51,7 +51,7 @@ function resolveStrike(s){const p=s.player,a=weaponAttack(p,p.action);if(!a)retu
 }
 export function tick(s,dt,now=Date.now()){
  if(s.status!=='active')return;dt=clamp(dt,0,.06);const p=s.player;
- if(s.inSafehouse){p.vx=p.vy=0;s.input={};s.commands={};s.held={};return;}
+ if(s.inSafehouse||s.paused){p.vx=p.vy=0;s.input={};s.commands={};s.held={};return;}
  s.elapsed+=dt;s.sequence++;const stale=now-s.lastInputAt>700,input=stale?{}:s.input;
  const pressed={};for(const k of ['attack','heavy','dodge','storm','potion'])pressed[k]=!!s.commands[k]||!!input[k]&&!s.held[k];s.commands={};s.held={...input};
  for(const k of ['dodge','storm','potionCooldown','invulnerable','dashing','slash','comboWindow','staminaDelay'])p[k]=Math.max(0,p[k]-dt);
