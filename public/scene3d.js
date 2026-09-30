@@ -1,5 +1,6 @@
 import * as THREE from './vendor/three.module.js';
 import {LAND,BRIDGES,HOME,SHRINE,BOSS,OBSTACLES,landAt} from './game.js';
+import {walkable} from './world.js';
 import {SAFEHOUSE,FORGE,SUPPLIES} from './catalog.js';
 
 // Local, original geometry and procedural surfaces. Coordinates match the server.
@@ -159,28 +160,36 @@ export function createWorld(canvas){
  function aimAt(mouse,p){raycaster.setFromCamera(new THREE.Vector2(mouse.x/w*2-1,-mouse.y/h*2+1),camera);if(raycaster.ray.intersectPlane(ground,intersection))return Math.atan2(intersection.z-p.y*S,intersection.x-p.x*S);return p.angle;}
  function animateActor(a,s,dt,t){if(a.type==='player'){const equipped=s.weapon||'axe';a.axeParts.forEach(part=>part.visible=equipped==='axe');a.sword.visible=equipped==='sword';a.spear.visible=equipped==='spear';}
   const rolling=s.action==='roll',dead=s.hp<=0;
-  const tx=(s.x+(s.vx||0)*.035)*S,tz=(s.y+(s.vy||0)*.035)*S,oldX=a.root.position.x,oldZ=a.root.position.z;
+  // Bounded visual extrapolation fills gaps between authoritative snapshots.
+  if(a.sample!==s){a.sample=s;a.sampleAt=t;}
+  const horizon=Math.min(.22,Math.max(0,t-a.sampleAt)+.035);
+  let px=s.x,py=s.y;
+  for(let elapsed=0;elapsed<horizon;elapsed+=.02){const step=Math.min(.02,horizon-elapsed),dx=(s.vx||0)*step,dy=(s.vy||0)*step;if(walkable(px+dx,py,16))px+=dx;if(walkable(px,py+dy,16))py+=dy;}
+  const tx=px*S,tz=py*S,oldX=a.root.position.x,oldZ=a.root.position.z;
   if(Math.hypot(tx-oldX,tz-oldZ)>12||first)a.root.position.set(tx,.14,tz);else{a.root.position.x+=(tx-oldX)*Math.min(1,dt*23);a.root.position.z+=(tz-oldZ)*Math.min(1,dt*23);a.root.position.y=.14;}
   const travel=Math.min(.4,Math.hypot(a.root.position.x-oldX,a.root.position.z-oldZ));
   const measured=Math.hypot(s.vx||0,s.vy||0)*S;a.speed+=(measured-a.speed)*Math.min(1,dt*12);
-  const walking=a.speed>.18&&!rolling&&!dead;const strideLength=s.sprinting?1.22:.88;
+  const walking=a.speed>.18&&!rolling&&!dead;const strideLength=s.sprinting?3.4:2.6;
   if(walking)a.stride+=travel/(strideLength*a.scale)*Math.PI*2;
-  const bearing=rolling?s.dashAngle:s.angle,rotation=-bearing-Math.PI/2;a.root.rotation.y=mixAngle(a.root.rotation.y,rotation,Math.min(1,dt*16));
+  const bearing=rolling?s.dashAngle:s.angle,rotation=-bearing-Math.PI/2;
+  const turn=Math.atan2(Math.sin(rotation-a.root.rotation.y),Math.cos(rotation-a.root.rotation.y));
+  a.turnLean=(a.turnLean||0)+(Math.max(-.20,Math.min(.20,turn*.22))-(a.turnLean||0))*(1-Math.exp(-dt*10));
+  a.root.rotation.y=mixAngle(a.root.rotation.y,rotation,1-Math.exp(-dt*19));
   const relative=(s.moveAngle??s.angle)-s.angle,forward=Math.cos(relative),side=Math.sin(relative);
   const gaitAmplitude=walking?Math.min(1,a.speed/3):0;
-  a.rig.position.y=walking?Math.sin(a.stride*2)*.018:Math.sin(t*1.7)*.006;
-  a.rig.rotation.set(walking?.045*forward*(s.sprinting?2:1):0,0,walking?-.035*side:0);
+  a.rig.position.y=walking?Math.cos(a.stride*2)*(s.sprinting?.045:.025)*gaitAmplitude:Math.sin(t*1.7)*.006;
+  a.rig.rotation.set(walking?(s.sprinting?.19:.085)*forward:0,walking?Math.sin(a.stride)*.065*gaitAmplitude:0,walking?-.05*side+a.turnLean:0);
   a.rig.scale.setScalar(a.scale);
   a.legs.forEach((leg,i)=>{
-   const phase=a.stride+i*Math.PI,wave=Math.sin(phase),lift=Math.max(0,wave)*.13*gaitAmplitude;
-   const targetZ=Math.cos(phase)*.26*gaitAmplitude*forward,targetX=Math.cos(phase)*.16*gaitAmplitude*side;
+   const phase=a.stride+i*Math.PI,wave=Math.sin(phase),lift=Math.max(0,wave)*(s.sprinting?.22:.16)*gaitAmplitude;
+   const targetZ=Math.cos(phase)*(s.sprinting?.42:.32)*gaitAmplitude*forward,targetX=Math.cos(phase)*.16*gaitAmplitude*side;
    const down=.83-lift,L1=.44,L2=.41,d=Math.min(.849,Math.max(.45,Math.hypot(targetZ,down)));
    const hip=Math.atan2(-targetZ,down)+Math.acos(Math.max(-1,Math.min(1,(L1*L1+d*d-L2*L2)/(2*L1*d))));
    const knee=-(Math.PI-Math.acos(Math.max(-1,Math.min(1,(L1*L1+L2*L2-d*d)/(2*L1*L2)))));
    leg.hip.rotation.set(hip,0,-Math.atan2(targetX,down));leg.knee.rotation.x=knee;
    leg.ankle.rotation.x=-hip-knee+Math.max(0,-wave)*.10*gaitAmplitude;
   });
-  a.arms.forEach((arm,i)=>{arm.shoulder.rotation.set(.18+(walking?Math.sin(a.stride+(1-i)*Math.PI)*.28*forward:0),0,i?-.12:.12);arm.elbow.rotation.x=.25;});
+  a.arms.forEach((arm,i)=>{arm.shoulder.rotation.set(.18+(walking?Math.sin(a.stride+(1-i)*Math.PI)*(s.sprinting?.55:.36)*forward:0),0,i?-.12:.12);arm.elbow.rotation.x=s.sprinting?.9:.35;});
   const attack=s.action,phase=s.actionDuration?Math.min(1,s.actionTime/s.actionDuration):0;
   if(['light1','light2','heavy','finisher'].includes(attack)){
    const heavy=attack==='heavy'||attack==='finisher',hit=heavy?.41:.33;

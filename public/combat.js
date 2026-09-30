@@ -67,8 +67,8 @@ export function tick(s,dt,now=Date.now()){
  p.sprinting=!!input.sprint&&mag>.1&&!p.guard&&p.action==='idle'&&p.stamina>5;
  if(p.sprinting){p.stamina=Math.max(0,p.stamina-16*dt);p.staminaDelay=.3;}
  if(p.guard){p.stamina=Math.max(0,p.stamina-5*dt);p.staminaDelay=.3;}
- const speed=(p.sprinting?280:s.relic==='raven'?220:190)*(p.guard?.43:ATTACKS[p.action]?.4:1);
- const smoothing=1-Math.exp(-(mag>.05?11:17)*dt);p.vx+=(dx*speed-p.vx)*smoothing;p.vy+=(dy*speed-p.vy)*smoothing;if(stale){p.vx=0;p.vy=0;}
+ const speed=(p.sprinting?370:s.relic==='raven'?295:260)*(p.guard?.43:ATTACKS[p.action]?.4:1);
+ const smoothing=1-Math.exp(-(mag>.05?18:24)*dt);p.vx+=(dx*speed-p.vx)*smoothing;p.vy+=(dy*speed-p.vy)*smoothing;if(stale){p.vx=0;p.vy=0;}
  if(p.dashing>0){const power=380+Math.sin(p.dashing/.34*Math.PI)*130;move(p,Math.cos(p.dashAngle)*power*dt,Math.sin(p.dashAngle)*power*dt);p.vx=Math.cos(p.dashAngle)*power;p.vy=Math.sin(p.dashAngle)*power;}
  else{const oldX=p.x,oldY=p.y;move(p,p.vx*dt,p.vy*dt);if(p.x===oldX)p.vx=0;if(p.y===oldY)p.vy=0;}
  if(Math.hypot(p.vx,p.vy)>10)p.moveAngle=Math.atan2(p.vy,p.vx);
