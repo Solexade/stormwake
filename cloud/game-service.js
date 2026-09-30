@@ -33,7 +33,8 @@ export async function dispatch(c,ctx,route,b={},method='POST',origin='http://loc
  if(method==='GET'&&route==='history')return {records:(await c.query('SELECT kind,payload,created FROM stormwake_records WHERE player=$1 AND kind<>$2 ORDER BY created DESC LIMIT 50',[p.id,'combat'])).rows};
  if(method!=='POST')fail('Route not found.',404);
  if(route==='profile'){const name=String(b.name||'').trim();if(!/^[\p{L}\p{N} _-]{3,18}$/u.test(name))fail('Use 3–18 letters, numbers, spaces, dashes or underscores.');p.name=name;return {player:publicProfile(p)};}
- if(route==='start'){if(!p.run||p.run.status!=='active'){p.run=createRun(randomUUID(),now,p);p.run.updatedAt=now;await record(c,p,'expedition-started',{runId:p.run.id,weapon:p.run.player.weapon});}p.run.inSafehouse=false;return {run:snapshot(p.run)};}
+ if(route==='start'){if(!p.run||p.run.status!=='active'){p.run=createRun(randomUUID(),now,p);p.run.updatedAt=now;await record(c,p,'expedition-started',{runId:p.run.id,weapon:p.run.player.weapon});}p.run.inSafehouse=false;p.run.paused=false;return {run:snapshot(p.run)};}
+ if(route==='pause'){if(p.run?.status==='active'){p.run.paused=b.paused===true;p.run.input={};p.run.commands={};p.run.held={};p.run.player.vx=p.run.player.vy=0;p.run.lastInputAt=now;p.run.updatedAt=now;}return {run:p.run?snapshot(p.run):null};}
  if(route==='input'){if(p.run?.status==='active')setInput(p.run,b,now);return {run:p.run?snapshot(p.run):null};}
  if(route==='leave'){if(p.run?.status==='active')p.run.status='abandoned';await advance(c,p,now);return {ok:true};}
  if(route==='relic'){if(!p.run||!chooseRelic(p.run,b.relic))fail('Defeat the shrine guardians and stand beside the shrine.');return {run:snapshot(p.run)};}
