@@ -25,9 +25,10 @@ export async function advance(c,p,now=Date.now()){
  if(s.status!=='active'&&!s.recorded){s.recorded=true;if(s.status==='won'){p.salvage+=s.salvage;p.wins++;p.best=Math.max(p.best,s.score);s.result={score:s.score,salvage:s.salvage,seconds:Math.round(s.elapsed)};}await record(c,p,'expedition',{runId:s.id,status:s.status,score:s.score,salvage:s.status==='won'?s.salvage:0,kills:s.kills,seconds:Math.round(s.elapsed),weapon:s.player.weapon,relic:s.relic,damageTaken:s.damageTaken},s.id+':result');}
 }
 export async function dispatch(c,ctx,route,b={},method='POST',origin='http://localhost',now=Date.now()){
- if(route.startsWith('auth/')||route.startsWith('arrival/'))fail('Wallet connections and onchain arrivals are disabled.',410);
+ if(route.startsWith('arrival/'))fail('Onchain arrivals are currently disabled.',410);
  let p=ctx.p;await advance(c,p,now);
  const state=async()=>({player:publicProfile(ctx.p),chain:CHAIN,shop:SHOP_ITEMS,world:{salvage:Number((await c.query('SELECT salvage FROM stormwake_world WHERE id=1')).rows[0].salvage),target:1500},leaderboard:(await c.query('SELECT name,best,wins FROM stormwake_profiles WHERE wins>0 ORDER BY best DESC,wins DESC LIMIT 10')).rows,run:ctx.p.run?snapshot(ctx.p.run):null,storage:'postgres'});
+ const needIdentity=()=>{if(!safe(p)&&!p.run?.paused)fail('Pause your expedition before connecting a wallet.');};
  const needSafe=()=>{if(!safe(p))fail('Return to the harbour safehouse first.');};
  if(method==='GET'&&route==='state')return state();
  if(method==='GET'&&route==='run')return {run:p.run?snapshot(p.run):null};
@@ -45,7 +46,7 @@ export async function dispatch(c,ctx,route,b={},method='POST',origin='http://loc
  if(route==='start'){if(!p.run||p.run.status!=='active'){p.run=createRun(randomUUID(),now,p);p.run.updatedAt=now;await record(c,p,'expedition-started',{runId:p.run.id,weapon:p.run.player.weapon});}p.run.inSafehouse=false;p.run.paused=false;return {run:snapshot(p.run)};}
  if(route==='pause'){if(p.run?.status==='active'){p.run.paused=b.paused===true;p.run.input={};p.run.commands={};p.run.held={};p.run.player.vx=p.run.player.vy=0;p.run.lastInputAt=now;p.run.updatedAt=now;}return {run:p.run?snapshot(p.run):null};}
  if(route==='input'){if(p.run?.status==='active')setInput(p.run,b,now);return {run:p.run?snapshot(p.run):null};}
- if(route==='leave'){if(p.run?.status==='active')p.run.status='abandoned';await advance(c,p,now);return {ok:true};}
+ if(route==='leave'){if(p.run?.status==='active'){p.run.paused=true;p.run.input={};p.run.commands={};}await advance(c,p,now);return {ok:true};}
  if(route==='relic'){if(!p.run||!chooseRelic(p.run,b.relic))fail('Defeat the shrine guardians and stand beside the shrine.');return {run:snapshot(p.run)};}
  if(route==='safehouse/enter'){const s=p.run;if(s?.status==='active'){if(!safeArea(s.player)||![SAFEHOUSE,FORGE,SUPPLIES].some(q=>near(s.player,q,130)))fail('Reach Hearthhall or a harbour merchant first.');s.inSafehouse=true;s.input={};s.commands={};s.player.vx=s.player.vy=0;}return state();}
  if(route==='safehouse/exit'){if(p.run){p.run.inSafehouse=false;p.run.input={};p.run.commands={};p.run.lastInputAt=now;p.run.updatedAt=now;}return {run:p.run?snapshot(p.run):null};}
@@ -53,16 +54,16 @@ export async function dispatch(c,ctx,route,b={},method='POST',origin='http://loc
  if(route==='weapon/equip'){if(!Object.hasOwn(WEAPONS,b.weapon))fail('Choose an available weapon.');const s=p.run;if(s?.status==='active'&&s.player.action!=='idle')fail('Finish your move before switching weapons.');p.gear.weapon=b.weapon;if(s?.status==='active'){s.player.weapon=b.weapon;s.player.combo=s.player.comboWindow=0;s.buffer=null;}await record(c,p,'weapon-equipped',{weapon:b.weapon});return state();}
  if(route==='shop/buy'){needSafe();if(!Object.hasOwn(SHOP_ITEMS,b.item))fail('Unknown shop item.');const item=SHOP_ITEMS[b.item],rank=b.item==='potion'?p.potions:p.gear[b.item]||0;if(rank>=(b.item==='potion'?3:item.costs.length))fail('You already own the maximum amount.');const cost=item.costs[b.item==='potion'?0:rank];if(p.salvage<cost)fail(`You need ${cost} recovered salvage.`);p.salvage-=cost;if(b.item==='potion')p.potions++;else p.gear[b.item]=rank+1;if(p.run?.status==='active')applyLoadout(p.run,p);await record(c,p,'purchase',{item:b.item,cost,rank:rank+1});return state();}
  if(route==='contribute'){const amount=Number(b.amount);if(!Number.isSafeInteger(amount)||amount<1||amount>100000)fail('Choose a whole amount of salvage.');if(p.salvage<amount)fail('You need more recovered salvage.');p.salvage-=amount;p.contribution+=amount;await c.query('UPDATE stormwake_world SET salvage=salvage+$1 WHERE id=1',[amount]);await record(c,p,'contribution',{amount});return state();}
- if(route==='auth/challenge'){needSafe();try{p.auth=loginChallenge(b.address,origin,now);}catch{fail('Choose a valid EVM wallet address.');}return p.auth;}
+ if(route==='auth/challenge'){needIdentity();try{p.auth=loginChallenge(b.address,origin,now);}catch{fail('Choose a valid EVM wallet address.');}return p.auth;}
  if(route==='auth/verify'){
-  needSafe();const entry=p.auth;p.auth=null;if(!entry||entry.nonce!==b.nonce||!await validSignature(entry,b.signature))fail('Signature expired, already used, or does not match.',401);
+  needIdentity();const entry=p.auth;p.auth=null;if(!entry||entry.nonce!==b.nonce||!await validSignature(entry,b.signature))fail('Signature expired, already used, or does not match.',401);
   const found=(await c.query('SELECT doc FROM stormwake_profiles WHERE wallet=$1 FOR UPDATE',[entry.wallet])).rows[0];
-  if(found&&found.doc.id!==p.id){if(p.run?.status==='active')p.run.status='abandoned';await advance(c,p,now);await persist(c,p);ctx.p=found.doc;}
+  if(found&&found.doc.id!==p.id){if(p.run?.status==='active'){p.run.paused=true;p.run.input={};p.run.commands={};}await advance(c,p,now);await persist(c,p);ctx.p=found.doc;}
   else if(!p.wallet){p.wallet=entry.wallet;await c.query('DELETE FROM stormwake_sessions WHERE player=$1',[p.id]);}
   else if(p.wallet!==entry.wallet){await persist(c,p);ctx.p=newProfile();ctx.p.wallet=entry.wallet;await insert(c,ctx.p);}
   await c.query('DELETE FROM stormwake_sessions WHERE token=$1',[ctx.token]);await issue(c,ctx);await record(c,ctx.p,'wallet-signin',{wallet:ctx.p.wallet});return state();
  }
- if(route==='auth/logout'){needSafe();await c.query('DELETE FROM stormwake_sessions WHERE token=$1',[ctx.token]);if(p.run?.status==='active')p.run.status='abandoned';await advance(c,p,now);ctx.cookie='';return {ok:true};}
+ if(route==='auth/logout'){needIdentity();await c.query('DELETE FROM stormwake_sessions WHERE token=$1',[ctx.token]);if(p.run?.status==='active'){p.run.paused=true;p.run.input={};p.run.commands={};}await advance(c,p,now);ctx.cookie='';return {ok:true};}
  if(route==='arrival/challenge'){needSafe();if(!p.wallet)fail('Sign in with your wallet first.',401);if(p.checkin)return {recorded:p.checkin};if(!p.arrival||p.arrival.expires<now)p.arrival=arrivalChallenge(p.wallet);return {nonce:p.arrival.nonce,from:p.wallet,to:p.wallet,value:'0x0',data:p.arrival.data,chainId:CHAIN.hex};}
  if(route==='arrival/verify'){needSafe();if(!p.wallet)fail('Sign in first.',401);const entry=p.arrival;if(!entry||entry.expires<now||entry.nonce!==b.nonce||!/^0x[0-9a-fA-F]{64}$/.test(b.hash||''))fail('Invalid or expired arrival request.');if(p.checkin)return {pending:false,hash:p.checkin,player:publicProfile(p)};const [chain,tx,receipt]=await Promise.all([rpc('eth_chainId'),rpc('eth_getTransactionByHash',[b.hash]),rpc('eth_getTransactionReceipt',[b.hash])]);let result;try{result=checkArrival(entry,tx,receipt,chain);}catch(e){fail(e.message);}if(!result.pending){p.checkin=result.hash;await record(c,p,'onchain-arrival',result);}return {...result,player:publicProfile(p)};}
  fail('Route not found.',404);
