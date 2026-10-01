@@ -1,6 +1,6 @@
 # Stormwake: The Shattered Isles
 
-An original browser adventure by **[@oxsolexade](https://x.com/oxsolexade)**. Version 0.5 is a playable **3D prototype**, with an original articulated Norse adventurer, textured environments, animated water, shadows and a perspective follow camera. The visual style is grounded, stylized fantasy; it is not photorealistic or a production release. No token has been created or connected to this game.
+An original browser adventure by **[@oxsolexade](https://x.com/oxsolexade)**. Version 0.5 is a playable **3D prototype**, with an original articulated Norse adventurer, textured environments, animated water, shadows and a perspective follow camera. The visual style is grounded, stylized fantasy; it is not photorealistic or a production release. The community token $WAKE has launched on vibe/vibe testnet; token utility is not integrated into gameplay.
 
 All game models, procedural textures, story and synthesized sound are included locally. Three.js r180 is bundled under its MIT license in `public/vendor/THREE-LICENSE.txt`; playing does not require a CDN or external asset downloads. The renderer requires WebGL 2. Use **Performance** mode if your device struggles with shadows, or **Tactical view** for a wider camera.
 
@@ -24,7 +24,7 @@ npm.cmd start
 
 ## Play
 
-- Move: WASD/arrows. Aim: mouse. Light attack: J/left click. Heavy: K/right click. Tap J â†’ J â†’ K for the Stormbreaker finisher.
+- Move: WASD/arrows. Aim: mouse. Light attack: J/left click. Heavy: K/right click. Tap J → J → K for the Stormbreaker finisher.
 - Roll: Space. Sprint: Shift. Guard: F (time the start for a parry). Storm: Q. Heal: R. Target lock: T. Manage your stamina.
 - Interact: E. Touch devices have a joystick and action buttons with nearby-enemy targeting.
 - Follow the northern path out of the harbour. Defeat both shrine guardians and choose a relic at the central shrine. A cache in the northwest side area heals and grants salvage.
@@ -41,7 +41,7 @@ npm.cmd start
 - Cottage collisions are enforced by the authoritative server.
 - Three enemy types, attack telegraphs, health, dodge invulnerability, storm ability.
 - Two relic choices with trade-offs and a two-phase boss.
-- A complete start â†’ explore â†’ fight â†’ recover â†’ extract â†’ contribute loop.
+- A complete start → explore → fight → recover → extract → contribute loop.
 - Server-authoritative movement, damage, cooldowns, scores and extraction; the client submits input, never results.
 - Cookie-based guest profiles, name editing, SQLite saved progress, shared beacon and top-ten leaderboard.
 - Responsive UI, touch controls, minimap, narrative guide, sound toggle, fullscreen and field journal.
@@ -50,7 +50,7 @@ The original project's folder name stays `vibe-shattered-isles` to preserve loca
 
 ## Local SQLite preview
 
-`data/isles.sqlite` stores guests, completed expeditions and shared progress. It is excluded from version control. Cookie loss means loss of access to that guest profile; link a wallet at Hearthhall before losing the cookie to recover that profile on another browser. Active runs are in memory and end on server restart; completed results survive.
+`data/isles.sqlite` stores guests, completed expeditions and shared progress. It is excluded from version control. Use a recovery key or a linked wallet to recover a profile after cookie loss. Active runs are in memory and end on server restart; completed results survive.
 
 This server needs a **persistent Node process and persistent disk**. It is not suitable for deployment unchanged to Vercel Functions: the live game tick and local SQLite need a long-running server. Use one server instance behind HTTPS, with `HOST=0.0.0.0`, `NODE_ENV=production`, and `DATA_DIR` pointing at a backed-up persistent volume. Production cookies require HTTPS. Multi-instance scaling needs a shared database and a run-owner/coordinator design.
 
@@ -84,7 +84,7 @@ Enter Hearthhall in the harbour using E or its navigation button. It pauses your
 
 Wallet login uses a single-use signed message verified by the server, not a transaction. Rabby/MetaMask-compatible injected EOA wallets are supported; contract-wallet signatures are not supported. Existing wallet profiles are restored separately; guest balances are not merged.
 
-Optional Record arrival onchain sends a zero-value transaction to your own wallet with a unique memo on Robinhood Chain Testnet (46630). You approve it in your wallet and need test ETH for gas. The server verifies the chain, sender, recipient, memo and successful receipt. This is an arrival receipt, not a contract, NFT, onchain score or token reward. Gameplay remains server-side.
+The currently disabled Record arrival onchain feature previously sent a zero-value transaction to your own wallet with a unique memo on Robinhood Chain Testnet (46630). You approve it in your wallet and need test ETH for gas. The server verifies the chain, sender, recipient, memo and successful receipt. This is an arrival receipt, not a contract, NFT, onchain score or token reward. Gameplay remains server-side.
 
 Faucet: https://faucet.testnet.chain.robinhood.com/ . Set PUBLIC_ORIGIN to your HTTPS origin in production.
 
@@ -100,7 +100,7 @@ Touch controls can be enabled on any device. Drag the left stick to move, reach 
 
 Vercel uses api/index.js and the cloud/ Postgres backend, not the local SQLite server. Set DATABASE_URL (pooled Neon/Postgres URL) on Vercel. Tables use the stormwake_ prefix to keep this game isolated from other products. The schema initializes on the first API request.
 
-Cloud profiles, sessions, wallets, gear, potions, active expedition snapshots, completed/abandoned runs, purchases, combat events, contributions and confirmed arrival receipts persist across function restarts. My records shows the latest 50 personal activity records. Raw wallet signatures and private keys are not stored. Guest cookies last seven days; wallet login restores the same profile across browsers. Disconnecting does not delete saved progress.
+Cloud profiles, sessions, wallets, gear, potions, active expedition snapshots, completed/abandoned runs, purchases, combat events, contributions and confirmed arrival receipts persist across function restarts. My records shows the latest 50 personal activity records. Raw wallet signatures and private keys are not stored. Guest cookies last one year; wallet login restores the same profile across browsers. Disconnecting does not delete saved progress.
 
 The server advances combat from elapsed wall-clock time on each input request, with bounded catch-up after connection loss. Browser requests never supply trusted scores or damage. PostgreSQL row locks serialize updates for a player, and extraction rewards are committed with the run state to prevent double credit. Database storage and function usage remain subject to the hosting account quotas.
 
@@ -112,4 +112,7 @@ Starting or resuming an expedition enters a viewport-sized play mode with no pag
 This remains a stylized solo prototype. Additional islands, daily quests, motion-captured animations and real-device mobile performance validation are future work; no token rewards are promised.
 
 ## Guest-only release
-Wallet sign-in and onchain arrival endpoints are disabled. Existing profile records are retained. Progress uses a server-side guest profile and an HttpOnly cookie with a one-year lifetime, renewed as players return. Save & restore creates a private, one-year recovery key for moving to another browser; it grants access to the profile and must not be shared. Production saves active expeditions in Postgres, with the existing 45-minute expedition limit. Local SQLite saves inventory and results; active local runs remain in memory. Nearby cache, shrine, shop and extraction prompts are tappable. Three successful melee strikes charge one Stormbreaker button; misses and storm damage do not charge it.
+Wallet sign-in was temporarily disabled in this release; it is restored in the update below. Onchain arrival endpoints remain disabled. Existing profile records are retained. Progress uses a server-side guest profile and an HttpOnly cookie with a one-year lifetime, renewed as players return. Save & restore creates a private, one-year recovery key for moving to another browser; it grants access to the profile and must not be shared. Production saves active expeditions in Postgres, with the existing 45-minute expedition limit. Local SQLite saves inventory and results; active local runs remain in memory. Nearby cache, shrine, shop and extraction prompts are tappable. Three successful melee strikes charge one Stormbreaker button; misses and storm damage do not charge it.
+
+## Optional wallet sign-in restored
+Connect wallet opens a provider menu with an explicit Disconnect action. Guests can still play and use recovery keys. Sign-in is a message signature; arrival transactions remain disabled. Connecting pauses an active expedition. First linking a guest profile revokes old guest sessions and recovery keys; create a fresh recovery key after linking. Switching profiles and disconnecting pause the prior expedition rather than abandoning it.

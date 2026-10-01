@@ -46,7 +46,7 @@ const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname.startsWith('/api/')){
-      if(/^\/api\/(auth|arrival)\//.test(url.pathname))return json(res,410,{error:'Wallet connections and onchain arrivals are disabled.'});
+      if(/^\/api\/arrival\//.test(url.pathname))return json(res,410,{error:'Onchain arrivals are currently disabled.'});
       if(req.method!=='GET'&&req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)return json(res,403,{error:'Please use this gameâ€™s own tab.'});
       let token=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('isles='))?.slice(6);
       let p=token?(db.prepare('SELECT p.* FROM players p JOIN sessions s ON p.id=s.player WHERE s.token=? AND s.expires>?').get(digest(token),Date.now())||db.prepare('SELECT * FROM players WHERE token=? AND wallet IS NULL').get(digest(token))):null;
@@ -92,27 +92,27 @@ const server=http.createServer(async(req,res)=>{
         const updated=fresh(p.id),s=runs.get(p.id);if(s?.status==='active')applyLoadout(s,profile(updated));return json(res,200,state(updated));
       }
       if(req.method==='POST'&&url.pathname==='/api/auth/challenge'){
-        if(!safeSession(p))return json(res,400,{error:'Enter Hearthhall before signing in.'});
+        if(!safeSession(p)&&!runs.get(p.id)?.paused)return json(res,400,{error:'Pause your expedition before connecting a wallet.'});
         const origin=process.env.PUBLIC_ORIGIN||`${process.env.NODE_ENV==='production'?'https':'http'}://${req.headers.host}`;
         let challenge;try{challenge=loginChallenge(b.address,origin);}catch{return json(res,400,{error:'Choose a valid EVM wallet address.'});}
         db.prepare('DELETE FROM auth_nonces WHERE player=? OR expires<?').run(p.id,Date.now());
         db.prepare('INSERT INTO auth_nonces(nonce,player,wallet,message,expires) VALUES(?,?,?,?,?)').run(challenge.nonce,p.id,challenge.wallet,challenge.message,challenge.expires);return json(res,200,challenge);
       }
       if(req.method==='POST'&&url.pathname==='/api/auth/verify'){
-        if(!safeSession(p))return json(res,400,{error:'Enter Hearthhall before signing in.'});
+        if(!safeSession(p)&&!runs.get(p.id)?.paused)return json(res,400,{error:'Pause your expedition before connecting a wallet.'});
         const entry=db.prepare('SELECT * FROM auth_nonces WHERE nonce=? AND player=? AND used=0').get(String(b.nonce||''),p.id);
         if(!entry)return json(res,401,{error:'Sign-in expired or already used. Request a new signature.'});
         db.prepare('UPDATE auth_nonces SET used=1 WHERE nonce=?').run(entry.nonce);
         if(!await validSignature(entry,b.signature))return json(res,401,{error:'The wallet signature did not match or expired.'});
         let target=db.prepare('SELECT * FROM players WHERE wallet=?').get(entry.wallet);
-        if(!target){if(!p.wallet){db.prepare('UPDATE players SET wallet=?,token=? WHERE id=?').run(entry.wallet,digest(randomBytes(32)),p.id);target=fresh(p.id);}else{const id=randomUUID();db.prepare('INSERT INTO players(id,token,name,created,wallet) VALUES(?,?,?,?,?)').run(id,digest(randomBytes(32)),'Voyager '+entry.wallet.slice(-4).toUpperCase(),Date.now(),entry.wallet);target=fresh(id);}}
+        if(!target){if(!p.wallet){db.prepare('DELETE FROM sessions WHERE player=?').run(p.id);db.prepare('UPDATE players SET wallet=?,token=? WHERE id=?').run(entry.wallet,digest(randomBytes(32)),p.id);target=fresh(p.id);}else{const id=randomUUID();db.prepare('INSERT INTO players(id,token,name,created,wallet) VALUES(?,?,?,?,?)').run(id,digest(randomBytes(32)),'Voyager '+entry.wallet.slice(-4).toUpperCase(),Date.now(),entry.wallet);target=fresh(id);}}
         if(token)db.prepare('DELETE FROM sessions WHERE token=?').run(digest(token));
         // Switching to an existing wallet loads its own inventory; balances never merge.
-        if(target.id!==p.id){const old=runs.get(p.id);if(old?.status==='active')old.status='abandoned';}
+        if(target.id!==p.id){const old=runs.get(p.id);if(old?.status==='active'){old.paused=true;old.input={};old.commands={};}}
         issueSession(res,target.id);return json(res,200,state(target));
       }
       if(req.method==='POST'&&url.pathname==='/api/auth/logout'){
-        if(!safeSession(p))return json(res,400,{error:'Return to Hearthhall before disconnecting.'});if(token)db.prepare('DELETE FROM sessions WHERE token=?').run(digest(token));const old=runs.get(p.id);if(old?.status==='active')old.status='abandoned';cookie(res,'');return json(res,200,{ok:true});
+        if(!safeSession(p)&&!runs.get(p.id)?.paused)return json(res,400,{error:'Pause your expedition before disconnecting.'});if(token)db.prepare('DELETE FROM sessions WHERE token=?').run(digest(token));const old=runs.get(p.id);if(old?.status==='active'){old.paused=true;old.input={};old.commands={};}cookie(res,'');return json(res,200,{ok:true});
       }
       if(req.method==='POST'&&url.pathname==='/api/arrival/challenge'){
         if(!p.wallet||!safeSession(p))return json(res,401,{error:'Sign in with your wallet in Hearthhall first.'});
