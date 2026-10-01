@@ -1,7 +1,17 @@
 import {HOME,SHRINE,BOSS,RELICS,walkable} from './world.js';
-import {loadoutStats,safeArea,WEAPONS} from './catalog.js';
+import {loadoutStats,safeArea,WEAPONS,SAFEHOUSE,FORGE,SUPPLIES} from './catalog.js';
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const angleDifference=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
+export const COMBO_HITS=3;
+export function interactionFor(s){
+ if(!s||s.status!=='active'||s.inSafehouse||s.paused)return null;const p=s.player;
+ if(s.bossDead&&distance(p,HOME)<115)return {kind:'extract',label:'Return with salvage',ready:true};
+ if(!s.chest&&distance(p,{x:580,y:720})<95)return {kind:'chest',label:'Open cache · heal + salvage',ready:true};
+ if(!s.relic&&distance(p,SHRINE)<130)return {kind:'relic',label:s.relicReady?'Choose relic':'Defeat both shrine guardians',ready:!!s.relicReady};
+ if([FORGE,SUPPLIES].some(q=>distance(p,q)<115))return {kind:'forge',label:'Open shop',ready:true};
+ if(distance(p,SAFEHOUSE)<115)return {kind:'hearth',label:'Enter Hearthhall',ready:true};
+ return null;
+}
 export const ATTACKS={
  light1:{name:'Crosscut',duration:.43,hit:.13,damage:24,cost:8,range:105,arc:1.25,lunge:18,stagger:.13},
  light2:{name:'Backhand',duration:.48,hit:.17,damage:32,cost:10,range:116,arc:1.65,lunge:23,stagger:.23},
@@ -14,7 +24,7 @@ export function weaponAttack(p,key){const a=ATTACKS[key];if(!a)return null;const
 export function createRun(id,now=Date.now(),options={}){
  const stats=loadoutStats(options.gear,options.wins);
  const definitions=[['raider',730,1160],['raider',925,1140],['archer',1305,1115],['brute',1380,920],['raider',935,850],['archer',730,705],['brute',590,810],['raider',1650,825],['archer',1800,885],['raider',2090,580]];
- return {id,started:now,elapsed:0,status:'active',inSafehouse:false,player:{...HOME,...stats,weapon:Object.hasOwn(WEAPONS,options.gear?.weapon)?options.gear.weapon:'axe',hp:stats.maxHp,stamina:stats.maxStamina,angle:-Math.PI/2,vx:0,vy:0,moveAngle:-Math.PI/2,sprinting:false,attack:0,dodge:0,storm:0,potionCooldown:0,invulnerable:0,dashing:0,slash:0,action:'idle',actionTime:0,actionDuration:0,actionId:0,combo:0,comboWindow:0,hitDone:false,guard:false,guardAge:0,staminaDelay:0,potions:clamp(options.potions??1,0,3)},
+ return {id,started:now,elapsed:0,status:'active',inSafehouse:false,player:{...HOME,...stats,weapon:Object.hasOwn(WEAPONS,options.gear?.weapon)?options.gear.weapon:'axe',hp:stats.maxHp,stamina:stats.maxStamina,angle:-Math.PI/2,vx:0,vy:0,moveAngle:-Math.PI/2,sprinting:false,attack:0,dodge:0,storm:0,potionCooldown:0,invulnerable:0,dashing:0,slash:0,action:'idle',actionTime:0,actionDuration:0,actionId:0,combo:0,comboWindow:0,comboCharge:0,hitDone:false,guard:false,guardAge:0,staminaDelay:0,potions:clamp(options.potions??1,0,3)},
  enemies:definitions.map(([type,x,y],i)=>({id:i,type,x,y,homeX:x,homeY:y,hp:type==='brute'?130:type==='archer'?64:80,maxHp:type==='brute'?130:type==='archer'?64:80,cd:1+i*.08,wind:0,angle:0,flash:0,stagger:0,swing:0,death:0,vx:0,vy:0})),
  boss:{id:99,type:'boss',...BOSS,hp:600,maxHp:600,cd:2,wind:0,angle:0,flash:0,stagger:0,swing:0,death:0,vx:0,vy:0,awake:false,phase:1},
  input:{dx:0,dy:0,angle:-Math.PI/2},held:{},commands:{},commandIds:{},buffer:null,kills:0,salvage:0,score:0,relic:null,relicReady:false,bossDead:false,chest:false,usedPotions:0,potionsDebited:0,
@@ -34,18 +44,21 @@ function hurt(s,damage,x,y,source){const p=s.player;if(p.invulnerable>0||s.statu
 }
 export function setInput(s,b,now=Date.now()){
  const input={dx:clamp(Number(b.dx)||0,-1,1),dy:clamp(Number(b.dy)||0,-1,1),angle:Number.isFinite(b.angle)?b.angle:s.player.angle};
- for(const action of ['attack','heavy','dodge','storm','potion','guard','sprint','interact'])input[action]=b[action]===true;
- for(const action of ['attack','heavy','dodge','storm','potion']){const id=b[`${action}Id`];if(Number.isSafeInteger(id)&&id>0&&id>(s.commandIds[action]||0)){s.commandIds[action]=id;s.commands[action]=true;}}
+ for(const action of ['attack','heavy','combo','dodge','storm','potion','guard','sprint','interact'])input[action]=b[action]===true;
+ for(const action of ['attack','heavy','combo','dodge','storm','potion']){const id=b[`${action}Id`];if(Number.isSafeInteger(id)&&id>0&&id>(s.commandIds[action]||0)){s.commandIds[action]=id;s.commands[action]=true;}}
  s.input=input;s.lastInputAt=now;
 }
 export function applyLoadout(s,options){const stats=loadoutStats(options.gear,options.wins),p=s.player;const oldMax=p.maxHp;Object.assign(p,stats);if(s.relic==='raven')p.maxHp-=40;p.hp=Math.min(p.maxHp,p.hp+Math.max(0,p.maxHp-oldMax));p.stamina=Math.min(p.maxStamina,p.stamina);p.potions=clamp(options.potions,0,3);}
 export function chooseRelic(s,key){if(s.status!=='active'||s.relic||!s.relicReady||!RELICS[key]||distance(s.player,SHRINE)>130)return false;s.relic=key;s.score+=100;if(key==='raven'){s.player.maxHp-=40;s.player.hp=Math.min(s.player.maxHp,s.player.hp);}else s.player.hp=Math.min(s.player.maxHp,s.player.hp+30);event(s,'relic',{key});return true;}
 function beginStrike(s,kind,deliberate){const p=s.player;if(p.dashing>0)return false;const follow=deliberate&&p.comboWindow>0;
- const key=kind==='heavy'?(follow&&p.combo===2?'finisher':'heavy'):follow&&p.combo===1?'light2':follow&&p.combo===2?'finisher':'light1';const a=weaponAttack(p,key);if(!spend(p,a.cost))return false;
+ if(kind==='combo'&&(p.comboCharge||0)<COMBO_HITS)return false;
+ const key=kind==='combo'?'finisher':kind==='heavy'?(follow&&p.combo===2?'finisher':'heavy'):follow&&p.combo===1?'light2':follow&&p.combo===2?'finisher':'light1';const a=weaponAttack(p,key);if(!spend(p,a.cost))return false;
+ if(key==='finisher')p.comboCharge=0;
  p.action=key;p.actionTime=0;p.actionDuration=a.duration;p.actionId++;p.hitDone=false;p.attack=a.duration;p.slash=0;p.combo=key==='light1'?1:key==='light2'?2:key==='finisher'?3:0;p.comboWindow=0;p.guard=false;event(s,'swing',{attack:key});return true;
 }
 function resolveStrike(s){const p=s.player,a=weaponAttack(p,p.action);if(!a)return;move(p,Math.cos(p.angle)*a.lunge,Math.sin(p.angle)*a.lunge);p.slash=.18;const living=[...s.enemies,...(s.boss.awake?[s.boss]:[])].filter(e=>e.hp>0);let first;
  for(const e of living){if(distance(p,e)<a.range+(e.type==='boss'?30:0)&&Math.abs(angleDifference(Math.atan2(e.y-p.y,e.x-p.x),p.angle))<a.arc){hitEnemy(s,e,a.damage+p.damageBonus-(s.relic==='storm'?5:0),a.stagger,p.action==='finisher'?36:7);first??=e;}}
+ if(first&&p.action!=='finisher'){p.comboCharge=Math.min(COMBO_HITS,(p.comboCharge||0)+1);if(p.comboCharge===COMBO_HITS)event(s,'combo-ready');}
  if(first&&s.relic==='storm'){const other=living.find(e=>e!==first&&e.hp>0&&distance(e,first)<185);if(other){hitEnemy(s,other,18);effect(s,'arc',first.x,first.y,.3,{tx:other.x,ty:other.y});}}
  if(p.action==='finisher'){effect(s,'finisher',p.x,p.y,.55,{angle:p.angle});event(s,'finisher',{hit:!!first});}
 }
@@ -53,11 +66,12 @@ export function tick(s,dt,now=Date.now()){
  if(s.status!=='active')return;dt=clamp(dt,0,.06);const p=s.player;
  if(s.inSafehouse||s.paused){p.vx=p.vy=0;s.input={};s.commands={};s.held={};return;}
  s.elapsed+=dt;s.sequence++;const stale=now-s.lastInputAt>700,input=stale?{}:s.input;
- const pressed={};for(const k of ['attack','heavy','dodge','storm','potion'])pressed[k]=!!s.commands[k]||!!input[k]&&!s.held[k];s.commands={};s.held={...input};
+ const pressed={};for(const k of ['attack','heavy','combo','dodge','storm','potion'])pressed[k]=!!s.commands[k]||!!input[k]&&!s.held[k];s.commands={};s.held={...input};
  for(const k of ['dodge','storm','potionCooldown','invulnerable','dashing','slash','comboWindow','staminaDelay'])p[k]=Math.max(0,p[k]-dt);
  if(Number.isFinite(input.angle))p.angle+=clamp(angleDifference(input.angle,p.angle),-dt*13,dt*13);
  if(p.action!=='idle'){p.actionTime+=dt;p.attack=Math.max(0,p.actionDuration-p.actionTime);const a=weaponAttack(p,p.action);if(a&&!p.hitDone&&p.actionTime>=a.hit){p.hitDone=true;resolveStrike(s);}if(p.actionTime>=p.actionDuration){p.action='idle';p.actionTime=0;p.attack=0;p.comboWindow=p.combo===1||p.combo===2?.72:0;}}
- if(pressed.attack||pressed.heavy)s.buffer={kind:pressed.heavy?'heavy':'attack',until:s.elapsed+.56};
+ if(pressed.combo&&(p.comboCharge||0)>=COMBO_HITS)s.buffer={kind:'combo',until:s.elapsed+1.2};
+ else if((pressed.attack||pressed.heavy)&&s.buffer?.kind!=='combo')s.buffer={kind:pressed.heavy?'heavy':'attack',until:s.elapsed+.56};
  if(s.buffer&&s.buffer.until<s.elapsed)s.buffer=null;
  if(s.buffer&&p.action==='idle'){beginStrike(s,s.buffer.kind,true);s.buffer=null;}else if(input.attack&&p.action==='idle'&&!pressed.attack)beginStrike(s,'attack',false);
  if(!p.comboWindow&&p.action==='idle')p.combo=0;
