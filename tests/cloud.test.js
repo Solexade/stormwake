@@ -16,10 +16,16 @@ test('cloud storage restores runs, records purchases and awards extraction only 
  const history=await dispatch(c,recovered,'history',{},'GET');assert.ok(history.records.some(r=>r.kind==='purchase'));assert.equal(history.records.filter(r=>r.kind==='expedition').length,1);
  await persist(c,recovered.p);c.release();await pool.end();
 });
-test('cloud wallet binding rotates sessions and refuses replay',async()=>{
- const db=newDb(),{Pool}=db.adapters.createPg(),pool=new Pool();await pool.query(schema);const c=await pool.connect(),ctx=await openSession(c);const old=ctx.cookie,account=privateKeyToAccount(generatePrivateKey());
- const challenge=await dispatch(c,ctx,'auth/challenge',{address:account.address},'POST','https://stormwake.example');
- const signature=await account.signMessage({message:challenge.message});await dispatch(c,ctx,'auth/verify',{nonce:challenge.nonce,signature});await persist(c,ctx.p);
- assert.equal(ctx.p.wallet,account.address.toLowerCase());await assert.rejects(()=>dispatch(c,ctx,'auth/verify',{nonce:challenge.nonce,signature}));assert.notEqual((await openSession(c,old)).p.id,ctx.p.id);
- c.release();await pool.end();
+
+test('guest recovery restores server progress without wallet access or merging profiles',async()=>{
+ const db=newDb(),{Pool}=db.adapters.createPg(),pool=new Pool();await pool.query(schema);const c=await pool.connect();
+ const original=await openSession(c);original.p.name='Saved voyager';original.p.salvage=140;original.p.gear={weapon:'spear',axe:2};await dispatch(c,original,'start');await persist(c,original.p);
+ const {key}=await dispatch(c,original,'save/key');assert.match(key,/^SW-[0-9a-f]{64}$/);
+ const guest=await openSession(c);const otherId=guest.p.id;
+ await assert.rejects(()=>dispatch(c,guest,'save/restore',{key:'SW-'+'0'.repeat(64)}),{status:401});assert.equal(guest.p.id,otherId);
+ const restored=await dispatch(c,guest,'save/restore',{key});assert.equal(restored.player.id,original.p.id);assert.equal(restored.player.salvage,140);assert.equal(restored.player.gear.axe,2);assert.equal(restored.run.id,original.p.run.id);
+ await persist(c,guest.p);const again=await openSession(c,guest.cookie);assert.equal(again.p.id,original.p.id);
+ const rows=(await c.query('SELECT token,expires FROM stormwake_sessions')).rows;assert.ok(rows.every(r=>!key.includes(r.token)));assert.ok(rows.every(r=>Number(r.expires)>Date.now()+300*86400000));
+ for(const route of ['auth/challenge','auth/verify','auth/logout','arrival/challenge','arrival/verify'])await assert.rejects(()=>dispatch(c,guest,route,{}),{status:410});
+ assert.equal(guest.p.salvage,140);c.release();await pool.end();
 });

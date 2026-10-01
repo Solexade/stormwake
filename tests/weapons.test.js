@@ -28,3 +28,22 @@ test('local movement responds before a server reply, normalizes diagonals and st
  const stopped=direct.step({dx:1,dy:0},1/60,800);assert.equal(stopped.vx,0);assert.equal(stopped.x,run.player.x);
  run.paused=true;direct.sync(run,900);assert.equal(direct.step({dx:1},.02,920).x,run.player.x);
 });
+
+import {interactionFor,COMBO_HITS} from '../public/combat.js';
+import {SHRINE,HOME} from '../public/world.js';
+test('context actions appear only near valid objects and disappear after opening',()=>{
+ const s=createRun('context',0);Object.assign(s.player,{x:580,y:720});assert.equal(interactionFor(s).kind,'chest');
+ setInput(s,{interact:true},1);tick(s,.02,1);assert.equal(s.chest,true);assert.equal(s.salvage,40);assert.notEqual(interactionFor(s)?.kind,'chest');
+ setInput(s,{interact:true},2);tick(s,.02,2);assert.equal(s.salvage,40);
+ Object.assign(s.player,SHRINE);assert.equal(interactionFor(s).ready,false);s.relicReady=true;assert.equal(interactionFor(s).ready,true);
+ Object.assign(s.player,HOME);s.bossDead=true;assert.equal(interactionFor(s).kind,'extract');s.paused=true;assert.equal(interactionFor(s),null);
+});
+test('three landed melee strikes unlock one combo; misses and forged charge do not',()=>{
+ const s=createRun('charge',0);let clock=0;const advance=n=>{for(let i=0;i<n;i++){clock+=20;s.lastInputAt=clock;tick(s,.02,clock);}};
+ const strike=hit=>{Object.assign(s.player,{...HOME,angle:0,stamina:100,action:'idle',comboWindow:0,combo:0});Object.assign(s.enemies[0],{x:HOME.x+(hit?65:600),y:HOME.y,homeX:HOME.x+(hit?65:600),homeY:HOME.y,hp:1000,cd:99});setInput(s,{attack:true,attackId:clock+1,angle:0},clock);advance(1);setInput(s,{angle:0},clock);advance(24);};
+ strike(false);assert.equal(s.player.comboCharge,0);setInput(s,{combo:true,comboId:1,comboCharge:3},clock);advance(1);assert.notEqual(s.player.action,'finisher');
+ for(let i=0;i<COMBO_HITS;i++)strike(true);assert.equal(s.player.comboCharge,COMBO_HITS);
+ s.player.stamina=0;setInput(s,{combo:true,comboId:2},clock);advance(1);assert.equal(s.player.comboCharge,COMBO_HITS,'insufficient stamina retains earned combo');
+ s.player.stamina=100;setInput(s,{combo:true,comboId:3},clock);advance(1);assert.equal(s.player.action,'finisher');assert.equal(s.player.comboCharge,0);
+ setInput(s,{},clock);advance(50);setInput(s,{combo:true,comboId:3},clock);advance(1);assert.notEqual(s.player.action,'finisher','replay cannot fire a second combo');
+});
