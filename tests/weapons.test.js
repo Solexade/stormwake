@@ -19,3 +19,12 @@ test('movement accelerates promptly, sprints faster and stops on stale input',()
 });
 
 test('pausing freezes combat and time without turning the wilderness into a safehouse',()=>{const s=createRun('pause',0);s.paused=true;s.input={dx:1,attack:true};const x=s.player.x;tick(s,.03,30);assert.equal(s.player.x,x);assert.equal(s.elapsed,0);assert.equal(s.inSafehouse,false);s.paused=false;setInput(s,{dx:1},40);tick(s,.03,40);assert.ok(s.player.x>x);});
+import {MovementPreview} from '../public/movement-preview.js';
+test('local movement responds before a server reply, normalizes diagonals and stops on connection loss',()=>{
+ const run=createRun('preview',0),original=JSON.stringify(run);const direct=new MovementPreview(),diagonal=new MovementPreview();direct.sync(run,0);diagonal.sync(run,0);
+ const a=direct.step({dx:1,dy:0,angle:0},1/60,16),b=diagonal.step({dx:1,dy:1,angle:.78},1/60,16);
+ assert.ok(a.x>run.player.x,'movement begins on the first rendered frame');assert.ok(Math.abs(Math.hypot(a.x-run.player.x,a.y-run.player.y)-Math.hypot(b.x-run.player.x,b.y-run.player.y))<.001);
+ assert.equal(JSON.stringify(run),original,'visual prediction never changes authoritative state');
+ const stopped=direct.step({dx:1,dy:0},1/60,800);assert.equal(stopped.vx,0);assert.equal(stopped.x,run.player.x);
+ run.paused=true;direct.sync(run,900);assert.equal(direct.step({dx:1},.02,920).x,run.player.x);
+});
