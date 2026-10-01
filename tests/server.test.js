@@ -34,11 +34,19 @@ test('HTTP sessions, score tampering, origin checks, and persistence',async t=>{
   response=await post('shop/buy',{item:'axe',cost:0});let purchased=await response.json();assert.equal(purchased.player.salvage,40);assert.equal(purchased.player.gear.axe,1);
   response=await post('shop/buy',{item:'axe',cost:0});assert.equal(response.status,400);
 
-  for(const route of ['auth/challenge','auth/verify','arrival/challenge','arrival/verify'])assert.equal((await post(route,{})).status,410);
+  for(const route of ['arrival/challenge','arrival/verify'])assert.equal((await post(route,{})).status,410);
   const {key}=await (await post('save/key',{})).json();assert.match(key,/^SW-[0-9a-f]{64}$/);
   const fresh=await fetch(base+'/api/state'),freshCookie=fresh.headers.get('set-cookie').split(';')[0];assert.notEqual((await fresh.json()).player.id,state.player.id);
   response=await post('save/restore',{key:'SW-'+'0'.repeat(64)},{Cookie:freshCookie});assert.equal(response.status,401);
   response=await post('save/restore',{key},{Cookie:freshCookie});assert.equal(response.status,200);const restored=await response.json();assert.equal(restored.player.id,state.player.id);assert.equal(restored.player.gear.axe,1);assert.equal(restored.player.salvage,40);
   const recoveredCookie=response.headers.get('set-cookie').split(';')[0];assert.match(response.headers.get('set-cookie'),/Max-Age=31536000/);
   response=await fetch(base+'/api/state',{headers:{Cookie:recoveredCookie}});assert.equal((await response.json()).player.name,'Test Voyager');
+  const account=privateKeyToAccount(generatePrivateKey());
+  const challenge=await (await post('auth/challenge',{address:account.address},{Cookie:recoveredCookie})).json();const signature=await account.signMessage({message:challenge.message});
+  response=await post('auth/verify',{nonce:challenge.nonce,signature},{Cookie:recoveredCookie});assert.equal(response.status,200);const signedCookie=response.headers.get('set-cookie').split(';')[0];assert.equal((await response.json()).player.id,state.player.id);
+  response=await post('auth/verify',{nonce:challenge.nonce,signature},{Cookie:signedCookie});assert.equal(response.status,401);
+  response=await post('save/restore',{key},{Cookie:signedCookie});assert.equal(response.status,401,'old guest recovery key is revoked');
+  response=await post('auth/logout',{}, {Cookie:signedCookie});assert.equal(response.status,200);
+  response=await fetch(base+'/api/state',{headers:{Cookie:signedCookie}});assert.notEqual((await response.json()).player.id,state.player.id);
+
 });
