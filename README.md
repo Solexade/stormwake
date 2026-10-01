@@ -24,7 +24,7 @@ npm.cmd start
 
 ## Play
 
-- Move: WASD/arrows. Aim: mouse. Light attack: J/left click. Heavy: K/right click. Tap J → J → K for the Stormbreaker finisher.
+- Move: WASD/arrows. Aim: mouse. Light attack: J/left click. Heavy: K/right click. Tap J â†’ J â†’ K for the Stormbreaker finisher.
 - Roll: Space. Sprint: Shift. Guard: F (time the start for a parry). Storm: Q. Heal: R. Target lock: T. Manage your stamina.
 - Interact: E. Touch devices have a joystick and action buttons with nearby-enemy targeting.
 - Follow the northern path out of the harbour. Defeat both shrine guardians and choose a relic at the central shrine. A cache in the northwest side area heals and grants salvage.
@@ -41,7 +41,7 @@ npm.cmd start
 - Cottage collisions are enforced by the authoritative server.
 - Three enemy types, attack telegraphs, health, dodge invulnerability, storm ability.
 - Two relic choices with trade-offs and a two-phase boss.
-- A complete start → explore → fight → recover → extract → contribute loop.
+- A complete start â†’ explore â†’ fight â†’ recover â†’ extract â†’ contribute loop.
 - Server-authoritative movement, damage, cooldowns, scores and extraction; the client submits input, never results.
 - Cookie-based guest profiles, name editing, SQLite saved progress, shared beacon and top-ten leaderboard.
 - Responsive UI, touch controls, minimap, narrative guide, sound toggle, fullscreen and field journal.
@@ -110,3 +110,6 @@ The local npm start preview still uses SQLite and a continuous game loop. Local 
 Starting or resuming an expedition enters a viewport-sized play mode with no page scrolling or permanent story sidebar. Wallet, Tasks and Pause remain available at the top. Pause/Tasks freezes server combat and expedition time; closing resumes the run. Return to harbour is available in Pause. Reduced motion quiets water/boat motion, and sound, blood effects and graphics controls are available in Pause. Touch layouts adapt to portrait and landscape with safe-area spacing. Normal movement is 260 units/s and sprint is 370, with faster acceleration/braking, longer strides, turn lean and bounded collision-aware visual extrapolation.
 
 This remains a stylized solo prototype. Additional islands, daily quests, motion-captured animations and real-device mobile performance validation are future work; no token rewards are promised.
+
+## Guest-only release
+Wallet sign-in and onchain arrival endpoints are disabled. Existing profile records are retained. Progress uses a server-side guest profile and an HttpOnly cookie with a one-year lifetime, renewed as players return. Save & restore creates a private, one-year recovery key for moving to another browser; it grants access to the profile and must not be shared. Production saves active expeditions in Postgres, with the existing 45-minute expedition limit. Local SQLite saves inventory and results; active local runs remain in memory. Nearby cache, shrine, shop and extraction prompts are tappable. Three successful melee strikes charge one Stormbreaker button; misses and storm damage do not charge it.

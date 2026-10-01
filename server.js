@@ -30,8 +30,8 @@ function profile(p){return {id:p.id,name:p.name,salvage:p.salvage,wins:p.wins,be
 function state(p){return {player:profile(p),chain:CHAIN,shop:SHOP_ITEMS,world:{salvage:db.prepare('SELECT salvage FROM world WHERE id=1').get().salvage,target:1500},leaderboard:db.prepare('SELECT name,best,wins,contribution FROM players WHERE wins>0 ORDER BY best DESC,wins DESC LIMIT 10').all(),run:runs.has(p.id)?snapshot(runs.get(p.id)):null};}
 const fresh=id=>db.prepare('SELECT * FROM players WHERE id=?').get(id);
 function safeSession(p){const s=runs.get(p.id);return !s||s.status!=='active'||s.inSafehouse;}
-function cookie(res,token){res.setHeader('Set-Cookie',`isles=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${process.env.NODE_ENV==='production'?'; Secure':''}`);}
-function issueSession(res,id){const token=randomBytes(32).toString('hex');db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(digest(token),id,Date.now()+604800000);cookie(res,token);}
+function cookie(res,token){res.setHeader('Set-Cookie',`isles=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000${process.env.NODE_ENV==='production'?'; Secure':''}`);}
+function issueSession(res,id){const token=randomBytes(32).toString('hex');db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(digest(token),id,Date.now()+31536000000);cookie(res,token);}
 function saveResult(pId,s){
   if(s.recorded||s.status==='active')return;s.recorded=true;
   if(s.status!=='won')return;
@@ -46,15 +46,24 @@ const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname.startsWith('/api/')){
-      if(req.method!=='GET'&&req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)return json(res,403,{error:'Please use this game’s own tab.'});
+      if(/^\/api\/(auth|arrival)\//.test(url.pathname))return json(res,410,{error:'Wallet connections and onchain arrivals are disabled.'});
+      if(req.method!=='GET'&&req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)return json(res,403,{error:'Please use this gameâ€™s own tab.'});
       let token=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('isles='))?.slice(6);
       let p=token?(db.prepare('SELECT p.* FROM players p JOIN sessions s ON p.id=s.player WHERE s.token=? AND s.expires>?').get(digest(token),Date.now())||db.prepare('SELECT * FROM players WHERE token=? AND wallet IS NULL').get(digest(token))):null;
       if(!p){token=randomBytes(32).toString('hex');const id=randomUUID();db.prepare('INSERT INTO players(id,token,name,created) VALUES(?,?,?,?)').run(id,digest(token),'Wanderer '+id.slice(0,4).toUpperCase(),Date.now());p=db.prepare('SELECT * FROM players WHERE id=?').get(id);res.setHeader('Set-Cookie',`isles=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000${process.env.NODE_ENV==='production'?'; Secure':''}`);}
       const rate=rates.get(p.id)||{start:Date.now(),count:0};if(Date.now()-rate.start>10000){rate.start=Date.now();rate.count=0;}rate.count++;rates.set(p.id,rate);if(rate.count>260)return json(res,429,{error:'Slow down for a moment.'});
-      if(req.method==='GET'&&url.pathname==='/api/state')return json(res,200,state(p));
+      if(req.method==='GET'&&url.pathname==='/api/state'){if(token){db.prepare('UPDATE sessions SET expires=? WHERE token=?').run(Date.now()+31536000000,digest(token));cookie(res,token);}return json(res,200,state(p));}
       if(req.method==='GET'&&url.pathname==='/api/history'){const records=[...db.prepare('SELECT * FROM results WHERE player=?').all(p.id).map(r=>({kind:'expedition',created:r.created,payload:{score:r.score,salvage:r.salvage,seconds:r.seconds}})),...db.prepare('SELECT * FROM purchases WHERE player=?').all(p.id).map(r=>({kind:'purchase',created:r.created,payload:{item:r.item,cost:r.cost}}))].sort((a,b)=>b.created-a.created).slice(0,50);return json(res,200,{records});}
       if(req.method==='GET'&&url.pathname==='/api/run')return json(res,200,{run:runs.has(p.id)?snapshot(runs.get(p.id)):null});
       const b=req.method==='POST'?await body(req):{};
+      if(req.method==='POST'&&url.pathname==='/api/save/key'){const key=randomBytes(32).toString('hex');db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(digest(key),p.id,Date.now()+31536000000);return json(res,200,{key:'SW-'+key});}
+      if(req.method==='POST'&&url.pathname==='/api/save/restore'){
+        const key=String(b.key||'').trim();if(!/^SW-[0-9a-f]{64}$/.test(key))return json(res,401,{error:'This recovery key is invalid or expired.'});
+        const saved=db.prepare('SELECT p.* FROM players p JOIN sessions s ON p.id=s.player WHERE s.token=? AND s.expires>?').get(digest(key.slice(3)),Date.now());
+        if(!saved)return json(res,401,{error:'This recovery key is invalid or expired.'});
+        if(saved.id!==p.id){const old=runs.get(p.id);if(old?.status==='active'){old.paused=true;old.input={};old.commands={};}}
+        issueSession(res,saved.id);return json(res,200,state(saved));
+      }
       if(req.method==='POST'&&url.pathname==='/api/safehouse/enter'){
         const s=runs.get(p.id);if(s?.status==='active'){if(!safeArea(s.player)||![SAFEHOUSE,FORGE,SUPPLIES].some(q=>near(s.player,q,130)))return json(res,400,{error:'Reach the Hearthhall door or a harbour merchant first.'});s.inSafehouse=true;s.input={};s.commands={};s.player.vx=s.player.vy=0;}
         return json(res,200,state(fresh(p.id)));
@@ -124,7 +133,7 @@ const server=http.createServer(async(req,res)=>{
         return json(res,200,{...result,player:profile(fresh(p.id))});
       }
       if(req.method==='POST'&&url.pathname==='/api/profile'){
-        const name=String(b.name||'').trim();if(!/^[\p{L}\p{N} _-]{3,18}$/u.test(name))return json(res,400,{error:'Use 3–18 letters, numbers, spaces, dashes or underscores.'});
+        const name=String(b.name||'').trim();if(!/^[\p{L}\p{N} _-]{3,18}$/u.test(name))return json(res,400,{error:'Use 3â€“18 letters, numbers, spaces, dashes or underscores.'});
         db.prepare('UPDATE players SET name=? WHERE id=?').run(name,p.id);return json(res,200,{player:profile({...p,name})});
       }
       if(req.method==='POST'&&url.pathname==='/api/start'){
