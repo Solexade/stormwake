@@ -10,7 +10,7 @@ const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});}
 export async function persist(c,p){await c.query('UPDATE stormwake_profiles SET wallet=$2,name=$3,best=$4,wins=$5,doc=$6 WHERE id=$1',[p.id,p.wallet,p.name,p.best,p.wins,JSON.stringify(p)]);}
 async function insert(c,p){await c.query('INSERT INTO stormwake_profiles(id,wallet,name,best,wins,doc) VALUES($1,$2,$3,$4,$5,$6)',[p.id,p.wallet,p.name,p.best,p.wins,JSON.stringify(p)]);}
 async function record(c,p,kind,payload,id=randomUUID()){await c.query('INSERT INTO stormwake_records(id,player,kind,payload,created) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING',[id,p.id,kind,JSON.stringify(payload),Date.now()]);}
-async function issue(c,ctx){const token=randomBytes(32).toString('hex');await c.query('INSERT INTO stormwake_sessions(token,player,expires) VALUES($1,$2,$3)',[digest(token),ctx.p.id,Date.now()+604800000]);ctx.cookie=token;ctx.token=digest(token);}
+async function issue(c,ctx){const token=randomBytes(32).toString('hex');await c.query('INSERT INTO stormwake_sessions(token,player,expires) VALUES($1,$2,$3)',[digest(token),ctx.p.id,Date.now()+31536000000]);ctx.cookie=token;ctx.token=digest(token);}
 export async function advance(c,p,now=Date.now()){
  const s=p.run;if(!s)return;
  if(s.status==='active'){
@@ -25,6 +25,7 @@ export async function advance(c,p,now=Date.now()){
  if(s.status!=='active'&&!s.recorded){s.recorded=true;if(s.status==='won'){p.salvage+=s.salvage;p.wins++;p.best=Math.max(p.best,s.score);s.result={score:s.score,salvage:s.salvage,seconds:Math.round(s.elapsed)};}await record(c,p,'expedition',{runId:s.id,status:s.status,score:s.score,salvage:s.status==='won'?s.salvage:0,kills:s.kills,seconds:Math.round(s.elapsed),weapon:s.player.weapon,relic:s.relic,damageTaken:s.damageTaken},s.id+':result');}
 }
 export async function dispatch(c,ctx,route,b={},method='POST',origin='http://localhost',now=Date.now()){
+ if(route.startsWith('auth/')||route.startsWith('arrival/'))fail('Wallet connections and onchain arrivals are disabled.',410);
  let p=ctx.p;await advance(c,p,now);
  const state=async()=>({player:publicProfile(ctx.p),chain:CHAIN,shop:SHOP_ITEMS,world:{salvage:Number((await c.query('SELECT salvage FROM stormwake_world WHERE id=1')).rows[0].salvage),target:1500},leaderboard:(await c.query('SELECT name,best,wins FROM stormwake_profiles WHERE wins>0 ORDER BY best DESC,wins DESC LIMIT 10')).rows,run:ctx.p.run?snapshot(ctx.p.run):null,storage:'postgres'});
  const needSafe=()=>{if(!safe(p))fail('Return to the harbour safehouse first.');};
@@ -32,7 +33,15 @@ export async function dispatch(c,ctx,route,b={},method='POST',origin='http://loc
  if(method==='GET'&&route==='run')return {run:p.run?snapshot(p.run):null};
  if(method==='GET'&&route==='history')return {records:(await c.query('SELECT kind,payload,created FROM stormwake_records WHERE player=$1 AND kind<>$2 ORDER BY created DESC LIMIT 50',[p.id,'combat'])).rows};
  if(method!=='POST')fail('Route not found.',404);
- if(route==='profile'){const name=String(b.name||'').trim();if(!/^[\p{L}\p{N} _-]{3,18}$/u.test(name))fail('Use 3–18 letters, numbers, spaces, dashes or underscores.');p.name=name;return {player:publicProfile(p)};}
+ if(route==='save/key'){const key=randomBytes(32).toString('hex');await c.query('INSERT INTO stormwake_sessions(token,player,expires) VALUES($1,$2,$3)',[digest(key),p.id,now+31536000000]);return {key:'SW-'+key};}
+ if(route==='save/restore'){
+  const key=String(b.key||'').trim();if(!/^SW-[0-9a-f]{64}$/.test(key))fail('This recovery key is invalid or expired.',401);
+  const row=(await c.query('SELECT player FROM stormwake_sessions WHERE token=$1 AND expires>$2',[digest(key.slice(3)),now])).rows[0];
+  if(!row)fail('This recovery key is invalid or expired.',401);
+  if(row.player!==p.id){if(p.run?.status==='active'){p.run.paused=true;p.run.input={};p.run.commands={};}await persist(c,p);const found=(await c.query('SELECT doc FROM stormwake_profiles WHERE id=$1 FOR UPDATE',[row.player])).rows[0];if(!found)fail('This recovery key is invalid or expired.',401);ctx.p=found.doc;}
+  await issue(c,ctx);return state();
+ }
+ if(route==='profile'){const name=String(b.name||'').trim();if(!/^[\p{L}\p{N} _-]{3,18}$/u.test(name))fail('Use 3â€“18 letters, numbers, spaces, dashes or underscores.');p.name=name;return {player:publicProfile(p)};}
  if(route==='start'){if(!p.run||p.run.status!=='active'){p.run=createRun(randomUUID(),now,p);p.run.updatedAt=now;await record(c,p,'expedition-started',{runId:p.run.id,weapon:p.run.player.weapon});}p.run.inSafehouse=false;p.run.paused=false;return {run:snapshot(p.run)};}
  if(route==='pause'){if(p.run?.status==='active'){p.run.paused=b.paused===true;p.run.input={};p.run.commands={};p.run.held={};p.run.player.vx=p.run.player.vy=0;p.run.lastInputAt=now;p.run.updatedAt=now;}return {run:p.run?snapshot(p.run):null};}
  if(route==='input'){if(p.run?.status==='active')setInput(p.run,b,now);return {run:p.run?snapshot(p.run):null};}
@@ -59,7 +68,7 @@ export async function dispatch(c,ctx,route,b={},method='POST',origin='http://loc
  fail('Route not found.',404);
 }
 export async function openSession(c,rawToken){
- const token=digest(rawToken||''),row=(await c.query('SELECT player FROM stormwake_sessions WHERE token=$1 AND expires>$2',[token,Date.now()])).rows[0];
- if(row){const p=(await c.query('SELECT doc FROM stormwake_profiles WHERE id=$1 FOR UPDATE',[row.player])).rows[0];if(p)return {p:p.doc,token};}
+ const token=digest(rawToken||''),row=(await c.query('SELECT player,expires FROM stormwake_sessions WHERE token=$1 AND expires>$2',[token,Date.now()])).rows[0];
+ if(row){const p=(await c.query('SELECT doc FROM stormwake_profiles WHERE id=$1 FOR UPDATE',[row.player])).rows[0];if(p){const ctx={p:p.doc,token};if(Number(row.expires)-Date.now()<2592000000){await c.query('UPDATE stormwake_sessions SET expires=$2 WHERE token=$1',[token,Date.now()+31536000000]);ctx.cookie=rawToken;}return ctx;}}
  const ctx={p:newProfile(),token};await insert(c,ctx.p);await issue(c,ctx);return ctx;
 }
