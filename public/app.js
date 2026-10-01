@@ -1,3 +1,4 @@
+import {availableWallets,signIn,forgetWallet,walletError} from './wallet.js';
 import {MovementPreview} from './movement-preview.js';
 const movementPreview=new MovementPreview();
 import {WORLD,LAND,BRIDGES,HOME,SHRINE,BOSS,OBSTACLES,RELICS,landAt} from './game.js';
@@ -25,7 +26,7 @@ function resetInput(){keys.clear();pulses={attack:false,dodge:false,storm:false,
 function modal(html,kind='info'){resetInput();dialogKind=kind;$('modalContent').innerHTML=html;if(!$('modal').open)$('modal').showModal();}
 function closeModal(){$('modal').close();dialogKind='';resetInput();canvas.focus({preventScroll:true});}
 $('closeModal').onclick=closeModal;$('modal').addEventListener('close',()=>{dialogKind='';resetInput();adventure?.closed();});
-function applyState(data){profile=data.player;$('weaponSelect').value=profile.gear?.weapon||'axe';community=data.world;leaders=data.leaderboard;$('playerName').textContent=profile.name;$('bankValue').textContent=profile.salvage;$('communityValue').textContent=community.salvage.toLocaleString();$('communityFill').style.width=Math.min(100,community.salvage/community.target*100)+'%';$('contributeBtn').disabled=profile.salvage<50;$('communityNote').textContent=community.salvage>=community.target?'The beacon is restored. Your harbour now shines.':'Shared progress on this game server.';}
+function applyState(data){profile=data.player;$('walletBtn').textContent=profile.wallet?'Wallet · connected':'Connect wallet';$('weaponSelect').value=profile.gear?.weapon||'axe';community=data.world;leaders=data.leaderboard;$('playerName').textContent=profile.name;$('bankValue').textContent=profile.salvage;$('communityValue').textContent=community.salvage.toLocaleString();$('communityFill').style.width=Math.min(100,community.salvage/community.target*100)+'%';$('contributeBtn').disabled=profile.salvage<50;$('communityNote').textContent=community.salvage>=community.target?'The beacon is restored. Your harbour now shines.':'Shared progress on this game server.';}
 async function refresh(){const data=await api('state');applyState(data);return data;}
 function setPlaying(value){playing=value;document.body.classList.toggle('expedition-mode',value);$('hero').classList.toggle('hidden',value);$('hud').classList.toggle('hidden',!value);$('touchControls').classList.toggle('hidden',!value||!touchEnabled);$('bossBar').classList.add('hidden');$('interaction').classList.add('hidden');$('comboBtn').classList.add('hidden');$('harbourNav').textContent=value?'Return to harbour':'The harbour';if(value){actionIds={};lockedTarget=null;playerVisual={x:run.player.x,y:run.player.y};camera={x:run.player.x,y:run.player.y};lastEvent=run.eventId;lastStatus='active';enemyVisual.clear();canvas.focus({preventScroll:true});}else{camera={x:1150,y:1070};$('areaLabel').textContent='THE LAST HARBOUR';$('areaSub').textContent='A light in the storm';$('startBtn').innerHTML='Begin expedition <span>↗</span>';updateObjectives();}}
 async function begin(){if(networkBusy)return;try{$('startBtn').disabled=true;const data=await api('start',{});run=data.run;movementPreview.sync(run,performance.now());setPlaying(true);raven('Land three hits to charge Stormbreaker, then tap Combo. Tap nearby prompts to open caches and shops.');message('THE SILENT SHORE');if(!sound)enableSound();}catch(e){toast(e.message);}finally{$('startBtn').disabled=false;}}
@@ -64,7 +65,7 @@ stick.onpointerdown=e=>{if(stickPointer!==null)return;e.preventDefault();stickPo
 
 adventure=createAdventureUI({api,modal,toast,applyState,acceptRun,getProfile:()=>profile,getRun:()=>playing?run:null,escape,sessionChanged:data=>{applyState(data);setPlaying(false);run=data.run||null;if(run?.status==='active')$('startBtn').innerHTML='Resume expedition <span>↗</span>';}});
 $('safehouseBtn').onclick=()=>adventure.open();
-$('saveBtn').onclick=showSave;
+$('saveBtn').onclick=showSave;$('walletBtn').onclick=showWallet;
 $('weaponSelect').onchange=async()=>{try{const data=await api('weapon/equip',{weapon:$('weaponSelect').value});applyState(data);if(data.run)acceptRun(data.run);toast(WEAPONS[profile.gear.weapon].description);}catch(e){$('weaponSelect').value=run?.player.weapon||profile.gear?.weapon||'axe';toast(e.message);}canvas.focus({preventScroll:true});};
 $('orbitLeft').onclick=()=>{orbit-=Math.PI/4;world3d?.setOrbit(orbit);};$('orbitRight').onclick=()=>{orbit+=Math.PI/4;world3d?.setOrbit(orbit);};
 $('touchToggle').onclick=()=>{touchEnabled=!touchEnabled;$('touchControls').classList.toggle('hidden',!playing||!touchEnabled);$('touchToggle').setAttribute('aria-pressed',String(touchEnabled));resetInput();};
@@ -108,7 +109,7 @@ async function openPause(tasks=false){
 }
 $('pauseBtn').onclick=()=>openPause();$('tasksBtn').onclick=()=>openPause(true);
 $('playSave').onclick=showSave;
-$('modal').addEventListener('close',async()=>{if(!run?.paused)return;try{const data=await api('pause',{paused:false});acceptRun(data.run);}catch(e){toast('Still paused. Open Pause and retry Resume.');}});
+$('modal').addEventListener('close',async()=>{if(!playing||!run?.paused)return;try{const data=await api('pause',{paused:false});acceptRun(data.run);}catch(e){toast('Still paused. Open Pause and retry Resume.');}});
 
 
 // Semantic buttons support touch, mouse, and keyboard activation equally.
@@ -117,8 +118,23 @@ $('comboBtn').onclick=()=>{if((run?.player.comboCharge||0)<COMBO_HITS)return;mou
 async function showSave(){
  if(!profile)return;
  try{if(playing&&run?.status==='active'){const data=await api('pause',{paused:true});acceptRun(data.run);}
- modal('<span class="modal-eyebrow">NO WALLET NEEDED</span><h2>Your adventure, saved.</h2><p>Your progress saves automatically to this browser’s guest profile. Banked salvage, gear and records stay on the game server. Active expeditions expire after 45 minutes.</p><p>Keep a private recovery key before changing devices or clearing cookies. Anyone with the key can access your profile. Keys last one year; create a new one before yours expires.</p><button class="primary" id="createKey">Create recovery key</button><div id="keyResult"></div><h3>Restore an existing save</h3><p>Restoring switches profiles; it does not merge them. Keep this profile’s recovery key first if you want to return.</p><form id="restoreForm"><label for="restoreKey">Private recovery key</label><input type="password" id="restoreKey" required autocomplete="off" spellcheck="false"><button class="secondary" type="submit">Restore my progress</button></form>','save');
+ modal('<span class="modal-eyebrow">NO WALLET NEEDED</span><h2>Your adventure, saved.</h2><button class="secondary" id="saveWallet">Connect / manage wallet</button><p>Your progress saves automatically to this browser’s guest profile. Banked salvage, gear and records stay on the game server. Active expeditions expire after 45 minutes.</p><p>Keep a private recovery key before changing devices or clearing cookies. Anyone with the key can access your profile. Keys last one year; create a new one before yours expires.</p><button class="primary" id="createKey">Create recovery key</button><div id="keyResult"></div><h3>Restore an existing save</h3><p>Restoring switches profiles; it does not merge them. Keep this profile’s recovery key first if you want to return.</p><form id="restoreForm"><label for="restoreKey">Private recovery key</label><input type="password" id="restoreKey" required autocomplete="off" spellcheck="false"><button class="secondary" type="submit">Restore my progress</button></form>','save');
+ $('saveWallet').onclick=showWallet;
  $('createKey').onclick=async()=>{const b=$('createKey');b.disabled=true;try{const data=await api('save/key',{});$('keyResult').innerHTML='<label for="saveKey">Store this somewhere private</label><input id="saveKey" readonly spellcheck="false" value="'+escape(data.key)+'"><button class="secondary" id="copyKey">Copy recovery key</button>';$('copyKey').onclick=async()=>{try{await navigator.clipboard.writeText(data.key);toast('Recovery key copied. Keep it private.');}catch{$('saveKey').select();toast('Select and copy your key.');}};}catch(e){toast(e.message);b.disabled=false;}};
  $('restoreForm').onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{const data=await api('save/restore',{key:$('restoreKey').value.trim()});run=null;setPlaying(false);applyState(data);closeModal();if(data.run?.status==='active'){run=data.run;$('startBtn').innerHTML='Resume expedition <span>↗</span>';}toast('Your saved voyager has been restored.');}catch(e){toast(e.message);b.disabled=false;}};
  }catch(e){toast(e.message);}
 }
+
+let walletBusy=false;
+function walletPanel(){
+ const choices=availableWallets(),address=profile?.wallet;
+ modal('<span class="modal-eyebrow">OPTIONAL WALLET SIGN-IN</span><h2>'+ (address?'Your wallet profile':'Connect your wallet')+'</h2><p>'+(address?'Signed in as <strong>'+escape(address)+'</strong>. Open this panel to manage your connection.':'Play as a guest or sign a one-time message with Rabby, MetaMask or another browser wallet. There is no transaction, token approval or gas payment.')+'</p><p>Your first wallet link keeps this guest profile’s inventory. An existing wallet loads its own separate save. After a first link, create a new recovery key in Save & restore: earlier guest keys are revoked.</p><div class="wallet-choices">'+choices.map(w=>'<button class="secondary" data-connect="'+escape(w.id)+'">'+(address?'Reconnect with ':'Connect ')+escape(w.name)+'</button>').join('')+'</div>'+(!choices.length?'<p>No browser wallet detected. On mobile, open this site inside your wallet’s browser. On desktop, use a browser with Rabby or MetaMask installed.</p><button class="secondary" id="retryWallet">Refresh wallet list</button>':'')+(address?'<button class="secondary" id="disconnectWallet">Disconnect wallet session</button><p>Disconnecting opens a new guest profile. Your wallet save remains available when you sign in again.</p>':'')+'<button class="secondary" id="walletSave">Guest saves & recovery</button>','wallet');
+ document.querySelectorAll('[data-connect]').forEach(b=>b.onclick=()=>walletAction(async()=>{const data=await signIn(b.dataset.connect,api);loadIdentity(data);toast('Wallet signature verified. Your save is ready.');}));
+ if($('retryWallet'))$('retryWallet').onclick=walletPanel;
+ if($('disconnectWallet'))$('disconnectWallet').onclick=()=>walletAction(async()=>{await api('auth/logout',{});forgetWallet();loadIdentity(await api('state'));toast('Disconnected. Your wallet progress is saved.');});
+ $('walletSave').onclick=showSave;
+}
+function loadIdentity(data){run=null;setPlaying(false);applyState(data);run=data.run||null;if(run?.status==='active')$('startBtn').innerHTML='Resume expedition <span>↗</span>';}
+async function walletAction(action){if(walletBusy)return;walletBusy=true;document.querySelectorAll('#modal button').forEach(b=>b.disabled=true);try{await action();}catch(e){toast(walletError(e));}finally{walletBusy=false;$('closeModal').disabled=false;walletPanel();}}
+async function showWallet(){if(!profile||walletBusy)return;try{resetInput();if(playing&&run?.status==='active'){const data=await api('pause',{paused:true});acceptRun(data.run);}walletPanel();}catch(e){toast(e.message);}}
+$('modal').addEventListener('cancel',e=>{if(walletBusy)e.preventDefault();});
