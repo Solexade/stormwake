@@ -58,6 +58,7 @@ function beginStrike(s,kind,deliberate){const p=s.player;if(p.dashing>0)return f
 }
 function resolveStrike(s){const p=s.player,a=weaponAttack(p,p.action);if(!a)return;move(p,Math.cos(p.angle)*a.lunge,Math.sin(p.angle)*a.lunge);p.slash=.18;const living=[...s.enemies,...(s.boss.awake?[s.boss]:[])].filter(e=>e.hp>0);let first;
  for(const e of living){if(distance(p,e)<a.range+(e.type==='boss'?30:0)&&Math.abs(angleDifference(Math.atan2(e.y-p.y,e.x-p.x),p.angle))<a.arc){hitEnemy(s,e,a.damage+p.damageBonus-(s.relic==='storm'?5:0),a.stagger,p.action==='finisher'?36:7);first??=e;}}
+ if(first)event(s,'strike',{attack:p.action});
  if(first&&p.action!=='finisher'){p.comboCharge=Math.min(COMBO_HITS,(p.comboCharge||0)+1);if(p.comboCharge===COMBO_HITS)event(s,'combo-ready');}
  if(first&&s.relic==='storm'){const other=living.find(e=>e!==first&&e.hp>0&&distance(e,first)<185);if(other){hitEnemy(s,other,18);effect(s,'arc',first.x,first.y,.3,{tx:other.x,ty:other.y});}}
  if(p.action==='finisher'){effect(s,'finisher',p.x,p.y,.55,{angle:p.angle});event(s,'finisher',{hit:!!first});}

@@ -1,3 +1,4 @@
+import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import * as THREE from './vendor/three.module.js';
 import {LAND,BRIDGES,HOME,SHRINE,BOSS,OBSTACLES,landAt} from './game.js';
 import {walkable} from './world.js';
@@ -11,10 +12,10 @@ export function createWorld(canvas){
  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
  renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
  renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.98;
- const scene=new THREE.Scene();scene.background=new THREE.Color('#849a9f');scene.fog=new THREE.FogExp2('#91a2ac',.017);
+ const scene=new THREE.Scene();scene.background=new THREE.Color('#607b83');scene.fog=new THREE.FogExp2('#607b83',.024);
  const camera=new THREE.PerspectiveCamera(48,1,.08,190);const look=new THREE.Vector3(HOME.x*S,1,HOME.y*S);let first=true,mode='follow',quality='high';
- const hemi=new THREE.HemisphereLight('#b9d4e4','#414331',1.35);scene.add(hemi);
- const sun=new THREE.DirectionalLight('#ffe2ba',3.7);sun.position.set(10,23,13);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-19;sun.shadow.camera.right=19;sun.shadow.camera.top=19;sun.shadow.camera.bottom=-19;sun.shadow.camera.far=70;sun.shadow.radius=3;sun.shadow.normalBias=.018;sun.shadow.bias=-.0003;scene.add(sun,sun.target);
+ const hemi=new THREE.HemisphereLight('#b6c8d1','#293c32',1.7);scene.add(hemi);
+ const sun=new THREE.DirectionalLight('#f5cf9a',2.65);sun.position.set(10,23,13);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-19;sun.shadow.camera.right=19;sun.shadow.camera.top=19;sun.shadow.camera.bottom=-19;sun.shadow.camera.far=70;sun.shadow.radius=3;sun.shadow.normalBias=.018;sun.shadow.bias=-.0003;scene.add(sun,sun.target);
  const rim=new THREE.DirectionalLight('#abcde8',.75);rim.position.set(-30,15,-35);scene.add(rim);
  // A softly lit studio sky supplies reflections for steel and worn brass.
  const environmentScene=new THREE.Scene();environmentScene.background=new THREE.Color('#b7c6cd');
@@ -23,7 +24,7 @@ export function createWorld(canvas){
  const skyMaterial=new THREE.ShaderMaterial({uniforms:{time:{value:0}},side:THREE.BackSide,depthWrite:false,vertexShader:`varying vec3 vDir;void main(){vDir=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`uniform float time;varying vec3 vDir;float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.)),f.x),f.y);}void main(){vec3 d=normalize(vDir);float up=max(d.y,0.);vec3 c=mix(vec3(.52,.61,.63),vec3(.18,.31,.38),pow(up,.55));vec2 p=d.xz/(up+.22)*2.5+vec2(time*.004,time*.001);float cloud=noise(p)*.55+noise(p*2.1)*.27+noise(p*4.2)*.13;c=mix(c,vec3(.75,.76,.70),smoothstep(.48,.75,cloud)*smoothstep(.02,.2,up)*.75);gl_FragColor=vec4(c,1.);}`});
  const sky=new THREE.Mesh(new THREE.SphereGeometry(140,24,16),skyMaterial);sky.renderOrder=-1;scene.add(sky);
  const random=randomFactory(24681);let count=0;
- function texture(kind){const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d'),data=g.createImageData(256,256),r=randomFactory(kind==='grass'?18:kind==='wood'?73:91);const base=kind==='grass'?[92,104,69]:kind==='wood'?[106,80,50]:kind==='leather'?[89,62,42]:[114,116,110];
+ function texture(kind){const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d'),data=g.createImageData(256,256),r=randomFactory(kind==='grass'?18:kind==='wood'?73:91);const base=kind==='grass'?[67,79,56]:kind==='wood'?[87,65,44]:kind==='leather'?[89,62,42]:[114,116,110];
    for(let y=0;y<256;y++)for(let x=0;x<256;x++){const i=(y*256+x)*4;let n=(r()-.5)*38;if(kind==='wood')n+=Math.sin(x*.8+Math.sin(y*.02)*2)*11;if(kind==='leather')n+=Math.sin(x*2)*Math.cos(y*2)*5;for(let k=0;k<3;k++)data.data[i+k]=base[k]+n;data.data[i+3]=255;}g.putImageData(data,0,0);
    if(kind==='stone'){g.strokeStyle='#202b2533';for(let i=0;i<25;i++){g.beginPath();g.moveTo(r()*256,r()*256);g.lineTo(r()*256,r()*256);g.stroke();}}
    const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return t;
@@ -36,30 +37,43 @@ export function createWorld(canvas){
   wood:new THREE.MeshStandardMaterial({map:woodTex,bumpMap:woodTex,bumpScale:.045,roughness:.85}),
   darkwood:new THREE.MeshStandardMaterial({map:woodTex,color:'#68625c',roughness:.9}),
   leather:new THREE.MeshStandardMaterial({map:leatherTex,bumpMap:leatherTex,bumpScale:.025,roughness:.84}),
-  metal:new THREE.MeshStandardMaterial({color:'#7e8d96',metalness:.83,roughness:.36}),
-  steel:new THREE.MeshStandardMaterial({color:'#bdc9c9',metalness:.85,roughness:.42}),
+  metal:new THREE.MeshStandardMaterial({color:'#7e8d96',metalness:.48,roughness:.66}),
+  steel:new THREE.MeshStandardMaterial({color:'#bdc9c9',metalness:.68,roughness:.52}),
   gold:new THREE.MeshStandardMaterial({color:'#ac8950',metalness:.73,roughness:.42}),
-  skin:new THREE.MeshStandardMaterial({color:'#bd9477',roughness:.92}),
+  skin:new THREE.MeshStandardMaterial({color:'#b7957c',roughness:.92}),
   beard:new THREE.MeshStandardMaterial({color:'#503a2a',roughness:1}),
   fur:new THREE.MeshStandardMaterial({color:'#807c70',roughness:1}),
-  cloth:new THREE.MeshStandardMaterial({color:'#354e5b',roughness:1,side:THREE.DoubleSide}),
+  cloth:new THREE.MeshStandardMaterial({color:'#263f49',roughness:1,side:THREE.DoubleSide}),
   pine:new THREE.MeshStandardMaterial({color:'#2e5148',roughness:1}),
   pineLight:new THREE.MeshStandardMaterial({color:'#436456',roughness:1}),
-  moss:new THREE.MeshStandardMaterial({color:'#637558',roughness:1}),
+  moss:new THREE.MeshStandardMaterial({color:'#496449',roughness:1}),
   glow:new THREE.MeshStandardMaterial({color:'#b9e9df',emissive:'#7bcec6',emissiveIntensity:2,roughness:.2,metalness:.3}),
   fire:new THREE.MeshBasicMaterial({color:'#ffcf80'}),
  };
- const boxGeo=new THREE.BoxGeometry(1,1,1),sphereGeo=new THREE.SphereGeometry(1,14,10),rockGeo=new THREE.DodecahedronGeometry(1,1),cylinderGeo=new THREE.CylinderGeometry(1,1,1,12);
+ const boxGeo=new THREE.BoxGeometry(1,1,1),sphereGeo=new THREE.SphereGeometry(1,18,12),rockGeo=new THREE.DodecahedronGeometry(1,1),cylinderGeo=new THREE.CylinderGeometry(1,1,1,12);
  function mesh(geo,mat,x=0,y=0,z=0,parent=scene){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);count++;return m;}
  const box=(mat,x,y,z,sx,sy,sz,parent=scene)=>{const m=mesh(boxGeo,mat,x,y,z,parent);m.scale.set(sx,sy,sz);return m;};
  const ball=(mat,x,y,z,sx,sy,sz,parent=scene)=>{const m=mesh(sphereGeo,mat,x,y,z,parent);m.scale.set(sx,sy,sz);return m;};
  function cylinder(mat,x,y,z,rt,rb,h,parent=scene,n=12){return mesh(new THREE.CylinderGeometry(rt,rb,h,n),mat,x,y,z,parent);}
  function beam(a,b,r,mat,parent=scene){const d=new THREE.Vector3().subVectors(b,a);const m=mesh(cylinderGeo,mat,0,0,0,parent);m.position.copy(a).add(b).multiplyScalar(.5);m.scale.set(r,d.length(),r);m.quaternion.setFromUnitVectors(UP,d.normalize());return m;}
  function rock(x,z,size,mat=mats.stone){const m=mesh(rockGeo,mat,x,size*.27-.15,z);m.scale.set(size,size*.74,size*.85);m.rotation.set(random()*.4,random()*7,random()*.4);return m;}
+
+ // Smooth tapered forms replace the separated bead-like limbs.
+ function form(mat,points,x,y,z,parent,depth=1){const g=new THREE.LatheGeometry(points.map(([r,h])=>new THREE.Vector2(r,h)),14);const m=mesh(g,mat,x,y,z,parent);m.scale.z=depth;return m;}
+ function batchStatic(root,excluded=new Set(),spatial=false){
+  root.updateMatrixWorld(true);const groups=new Map();
+  root.traverse(n=>{if(!n.isMesh||n.isInstancedMesh||Array.isArray(n.material)||excluded.has(n)||!n.visible)return;let q=n;while(q&&q!==root){if(excluded.has(q))return;q=q.parent;}
+   const wp=new THREE.Vector3().setFromMatrixPosition(n.matrixWorld),cell=spatial?Math.floor(wp.x/12)+':'+Math.floor(wp.z/12):'';
+   const signature=Object.entries(n.geometry.attributes).map(([name,a])=>name+':'+a.itemSize+':'+a.normalized).sort().join(',');const key=n.material.uuid+':'+cell+':'+!!n.geometry.index+':'+signature; if(!groups.has(key))groups.set(key,[]);groups.get(key).push(n);
+  });
+  for(const nodes of groups.values()){if(nodes.length<2)continue;const inverse=new THREE.Matrix4().copy(root.matrixWorld).invert();const geometries=nodes.map(n=>n.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse,n.matrixWorld)));const merged=mergeGeometries(geometries,false);geometries.forEach(g=>g.dispose());if(!merged)continue;const m=new THREE.Mesh(merged,nodes[0].material);m.castShadow=nodes.some(n=>n.castShadow);m.receiveShadow=true;root.add(m);nodes.forEach(n=>n.removeFromParent());}
+ }
  // Solid land masses, with visible coastal cliffs rather than flat map cut-outs.
  for(const p of LAND){const sh=new THREE.Shape(p.map(([x,z])=>new THREE.Vector2(x*S,-z*S)));const g=new THREE.ExtrudeGeometry(sh,{depth:1.25,bevelEnabled:true,bevelThickness:.18,bevelSize:.17,bevelSegments:2,steps:1});g.rotateX(-Math.PI/2);const m=mesh(g,[mats.ground,mats.darkstone]);m.position.y=-1.25;}
  // Hand-laid trail stones: the same route as the authoritative game map.
  const paths=[[[465,1410],[655,1360],[750,1180],[930,1100],[1135,815],[1420,820],[1650,795],[1840,680],[1910,560]],[[930,850],[780,810],[660,710]]];
+ const pathMat=new THREE.MeshStandardMaterial({map:stoneTex,color:'#665e4b',roughness:1});
+ for(const route of paths)for(let i=1;i<route.length;i++){const a=route[i-1],b=route[i],length=Math.hypot(b[0]-a[0],b[1]-a[1]);for(let d=0;d<length;d+=20){const f=d/length,x=a[0]+(b[0]-a[0])*f,z=a[1]+(b[1]-a[1])*f;if(!landAt(x,z)||BRIDGES.some(q=>x>q.x&&x<q.x+q.w&&z>q.y&&z<q.y+q.h))continue;const patch=mesh(new THREE.CircleGeometry(.5+random()*.18,9),pathMat,x*S,.015,z*S);patch.rotation.x=-Math.PI/2;}}
  const cobbles=[];for(const p of paths)for(let j=1;j<p.length;j++){const [a,b]=[p[j-1],p[j]],length=Math.hypot(b[0]-a[0],b[1]-a[1]);for(let d=0;d<length;d+=22){const f=d/length;for(let k=0;k<2;k++){const x=a[0]+(b[0]-a[0])*f+(random()-.5)*36,z=a[1]+(b[1]-a[1])*f+(random()-.5)*36;if(landAt(x,z))cobbles.push([x*S,z*S,.17+random()*.15]);}}}
  const dummy=new THREE.Object3D();const stones=new THREE.InstancedMesh(rockGeo,mats.stone,cobbles.length);cobbles.forEach(([x,z,r],i)=>{dummy.position.set(x,.06,z);dummy.scale.set(r,.06,r*.75);dummy.rotation.set(0,random()*6,0);dummy.updateMatrix();stones.setMatrixAt(i,dummy.matrix);});stones.receiveShadow=true;scene.add(stones);
  // Weathered bridges: decking, posts and sagging rope rails.
@@ -81,11 +95,18 @@ export function createWorld(canvas){
  const boat=longboat();
  const foliage=[];
  // Spruce silhouettes are layered, irregular and shaded with real lighting.
- for(let i=0;i<120;i++){const x=250+random()*1990,z=300+random()*1330;if(!landAt(x-35,z)||!landAt(x+35,z)||!landAt(x,z-40))continue;if([HOME,SHRINE,BOSS,{x:580,y:720}].some(p=>Math.hypot(p.x-x,p.y-z)<190))continue;if(z>1120&&x<870)continue;if(paths.some(p=>p.some(([a,b])=>Math.hypot(a-x,b-z)<95)))continue;if(x>1600&&z<890)continue;const h=2.5+random()*2.5;cylinder(mats.darkwood,x*S,h*.43,z*S,.07,.14,h*.86,scene,7);for(let j=0;j<4;j++){const c=mesh(new THREE.ConeGeometry(h*(.24-j*.035),h*.48,9),j%2?mats.pine:mats.pineLight,x*S,h*(.35+j*.18),z*S);c.rotation.y=random()*6;foliage.push({mesh:c,x:c.position.x,z:c.position.z,phase:random()*6,strength:.012+j*.009});}}
+ const crownGeo=new THREE.SphereGeometry(1,9,6);const cv=crownGeo.attributes.position;for(let i=0;i<cv.count;i++){const f=.78+random()*.32;cv.setXYZ(i,cv.getX(i)*f,cv.getY(i)*f,cv.getZ(i)*f);}crownGeo.computeVertexNormals();
+ for(let i=0;i<105;i++){const x=250+random()*1990,z=300+random()*1330;if(!landAt(x-35,z)||!landAt(x+35,z)||!landAt(x,z-40))continue;if([HOME,SHRINE,BOSS,{x:580,y:720}].some(p=>Math.hypot(p.x-x,p.y-z)<190))continue;if(z>1120&&x<870)continue;if(paths.some(p=>p.some(([a,b])=>Math.hypot(a-x,b-z)<95)))continue;if(x>1600&&z<890)continue;
+  const h=3+random()*2.2;cylinder(mats.darkwood,x*S,h*.43,z*S,.06,.15,h*.86,scene,7);
+  const crown=new THREE.Group();crown.position.set(x*S,0,z*S);scene.add(crown);
+  for(let j=0;j<12;j++){const a=j*2.4,r=(1-j/15)*h*.22;const b=mesh(crownGeo,j%3?mats.pine:mats.pineLight,Math.cos(a)*r*.55,h*(.33+j*.044),Math.sin(a)*r*.55,crown);b.scale.set(r,.20+r*.28,r*.58);b.rotation.y=-a;}
+  batchStatic(crown);foliage.push({mesh:crown,x:crown.position.x,z:crown.position.z,phase:random()*6,strength:.007});
+ }
+
  OBSTACLES.forEach(o=>rock(o.x*S,o.y*S,o.r*S));
  // Coastal boulders and distant mountain silhouettes.
  for(const p of LAND)for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length],d=Math.hypot(b[0]-a[0],b[1]-a[1]);for(let j=0;j<d;j+=45){const f=j/d;const x=(a[0]+(b[0]-a[0])*f)*S,z=(a[1]+(b[1]-a[1])*f)*S;rock(x,z,.25+random()*.45,mats.darkstone);}}
- const mountains=new THREE.MeshStandardMaterial({color:'#5b777b',roughness:1});for(let i=0;i<14;i++){const m=mesh(new THREE.ConeGeometry(4+random()*8,6+random()*10,6),mountains,-35+i*10,-1,-34-random()*12);m.rotation.y=random()*6;}
+ const mountains=new THREE.MeshStandardMaterial({color:'#5b777b',roughness:1});for(let i=0;i<14;i++){const m=mesh(new THREE.DodecahedronGeometry(6+random()*5,0),mountains,-35+i*10,-1,-34-random()*12);m.rotation.y=random()*6;}
  // Grass clumps use instancing to keep the scene affordable on laptops.
  const blades=[];for(let i=0;i<3500;i++){const x=random()*2400,z=random()*1750;if(landAt(x,z)&&!BRIDGES.some(b=>x>b.x-20&&x<b.x+b.w+20&&z>b.y-20&&z<b.y+b.h+20))blades.push([x*S,z*S]);}
  const grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.065,.32,3),mats.moss,blades.length);blades.forEach(([x,z],i)=>{dummy.position.set(x,.13,z);dummy.scale.set(1+random(),.6+random(),1);dummy.rotation.set(0,random()*6,random()*.25);dummy.updateMatrix();grass.setMatrixAt(i,dummy.matrix);});grass.receiveShadow=true;scene.add(grass);
@@ -109,6 +130,8 @@ export function createWorld(canvas){
  for(const [x,z] of [[470,1280],[715,1460]]){cylinder(mats.darkwood,x*S,1.8,z*S,.04,.06,3.6);const geo=new THREE.PlaneGeometry(.85,1.25,8,10),flag=mesh(geo,mats.cloth,x*S+.45,2.72,z*S);pennants.push(flag);}
  const mistGeo=new THREE.BufferGeometry(),mistPositions=new Float32Array(72*3);for(let i=0;i<72;i++){mistPositions[i*3]=(random()-.5)*28;mistPositions[i*3+1]=.4+random()*4;mistPositions[i*3+2]=(random()-.5)*24;}
  mistGeo.setAttribute('position',new THREE.BufferAttribute(mistPositions,3));const motes=new THREE.Points(mistGeo,new THREE.PointsMaterial({color:'#e8dec7',size:.035,transparent:true,opacity:.35,depthWrite:false}));scene.add(motes);
+ batchStatic(scene,new Set([boat,chest,crystal,beaconFlame,water,sky,...flames,...pennants,...foliage.map(f=>f.mesh)]),true);
+ const warmPool=new THREE.PointLight('#ffb46c',4.5,7,2);warmPool.position.set(470*S,1.7,1280*S);scene.add(warmPool);
  const contactCanvas=document.createElement('canvas');contactCanvas.width=contactCanvas.height=64;const contactCtx=contactCanvas.getContext('2d'),contactGradient=contactCtx.createRadialGradient(32,32,2,32,32,32);contactGradient.addColorStop(0,'rgba(0,0,0,.45)');contactGradient.addColorStop(1,'rgba(0,0,0,0)');contactCtx.fillStyle=contactGradient;contactCtx.fillRect(0,0,64,64);const contactMaterial=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(contactCanvas),transparent:true,depthWrite:false,opacity:.65});
  // Reusable articulated adventurer. Individual joints are animated from server state.
  function warrior(type){
@@ -118,13 +141,13 @@ export function createWorld(canvas){
   const scale=boss?1.85:type==='brute'?1.3:1;rig.scale.setScalar(scale);
   // Hips and fitted leather tunic, a tapered anatomical torso.
   ball(mats.leather,0,.98,0,.25,.24,.17,rig);const torso=mesh(new THREE.LatheGeometry([new THREE.Vector2(.22,0),new THREE.Vector2(.25,.18),new THREE.Vector2(.31,.41),new THREE.Vector2(.28,.52)],18),mats.leather,0,1.01,0,rig);torso.scale.z=.65;
-  ball(mats.metal,0,1.36,.025,.255,.23,.145,rig);box(mats.leather,0,1.08,.01,.55,.11,.38,rig);box(mats.gold,0,1.08,-.2,.12,.1,.04,rig);
+  form(mats.leather,[[.21,0],[.255,.13],[.27,.33],[.24,.40]],0,1.12,0,rig,.62);form(mats.leather,[[.245,0],[.25,.09]],0,1.05,0,rig,.7);box(mats.gold,0,1.08,-.2,.12,.1,.04,rig);
   // Cross-body strap and engraved belt rivets.
   const strap=box(mats.leather,0,1.37,-.153,.08,.57,.045,rig);strap.rotation.z=-.48;for(let i=0;i<5;i++)ball(mats.gold,(i-2)*.085,1.085,-.197,.017,.017,.013,rig);
-  const legs=[];for(const side of [-1,1]){const hip=new THREE.Group();hip.position.set(side*.13,.95,0);rig.add(hip);ball(cloth,0,-.2,0,.115,.26,.13,hip);const knee=new THREE.Group();knee.position.y=-.44;hip.add(knee);ball(mats.leather,0,-.17,0,.095,.2,.105,knee);box(mats.metal,0,.015,-.087,.14,.15,.06,knee);const ankle=new THREE.Group();ankle.position.y=-.41;knee.add(ankle);ball(mats.leather,0,0,-.055,.11,.085,.18,ankle);for(let j=0;j<2;j++)box(mats.gold,0,-.13-j*.13,-.107,.13,.025,.025,knee);legs.push({hip,knee,ankle});}
-  const arms=[];for(const side of [-1,1]){const shoulder=new THREE.Group();shoulder.position.set(side*.31,1.47,0);rig.add(shoulder);ball(mats.leather,0,-.035,0,.14,.14,.155,shoulder);ball(mats.metal,side*.045,.01,-.015,.135,.065,.16,shoulder);ball(skin,0,-.22,0,.084,.19,.092,shoulder);const elbow=new THREE.Group();elbow.position.y=-.39;shoulder.add(elbow);ball(mats.leather,0,-.13,0,.083,.17,.092,elbow);box(mats.metal,0,-.14,-.081,.12,.23,.045,elbow);ball(skin,0,-.31,0,.071,.093,.065,elbow);arms.push({shoulder,elbow});}
+  const legs=[];for(const side of [-1,1]){const hip=new THREE.Group();hip.position.set(side*.13,.95,0);rig.add(hip);form(cloth,[[.071,-.44],[.083,-.34],[.105,-.17],[.10,0]],0,0,0,hip,1.12);const knee=new THREE.Group();knee.position.y=-.44;hip.add(knee);form(mats.leather,[[.055,-.41],[.067,-.29],[.084,-.12],[.072,0]],0,0,0,knee,1.05);box(mats.metal,0,.015,-.087,.14,.15,.06,knee);const ankle=new THREE.Group();ankle.position.y=-.41;knee.add(ankle);ball(mats.leather,0,-.01,-.045,.085,.069,.15,ankle);for(let j=0;j<2;j++)box(mats.gold,0,-.13-j*.13,-.107,.13,.025,.025,knee);legs.push({hip,knee,ankle});}
+  const arms=[];for(const side of [-1,1]){const shoulder=new THREE.Group();shoulder.position.set(side*.275,1.47,0);rig.add(shoulder);ball(mats.leather,0,-.04,0,.105,.12,.12,shoulder);ball(mats.leather,side*.025,-.01,-.015,.115,.045,.13,shoulder);form(cloth,[[.061,-.39],[.077,-.22],[.082,-.1]],0,0,0,shoulder);const elbow=new THREE.Group();elbow.position.y=-.39;shoulder.add(elbow);form(mats.leather,[[.048,-.29],[.073,-.12],[.064,0]],0,0,0,elbow);box(mats.metal,0,-.14,-.081,.12,.23,.045,elbow);ball(skin,0,-.31,0,.071,.093,.065,elbow);arms.push({shoulder,elbow});}
   // Sculpted head: nose, ears, brows, cheekbones, hair and layered beard.
-  const head=new THREE.Group();head.position.y=1.72;head.scale.set(.92,1.04,.94);rig.add(head);cylinder(skin,0,-.11,0,.085,.1,.16,head);
+  const head=new THREE.Group();head.position.y=1.76;head.scale.set(.78,.84,.8);rig.add(head);cylinder(skin,0,-.11,0,.085,.1,.16,head);
   ball(skin,0,.06,-.015,.145,.19,.145,head);ball(skin,0,.045,-.155,.031,.055,.051,head);for(const side of [-1,1]){ball(skin,side*.146,.04,.005,.034,.055,.024,head);ball(skin,side*.085,-.003,-.111,.052,.042,.028,head);box(mats.beard,side*.065,.104,-.132,.092,.027,.025,head);ball(mats.darkstone,side*.06,.077,-.147,.022,.012,.009,head);}
   ball(mats.beard,0,.16,.038,.149,.13,.126,head);box(mats.beard,0,.208,-.016,.07,.065,.22,head);ball(mats.beard,0,-.065,-.085,.113,.115,.085,head);for(let i=0;i<13;i++){const bx=(i-6)*.015;const beard=mesh(new THREE.ConeGeometry(.014,.17+(.10-Math.abs(bx)),6),mats.beard,bx,-.16,-.126+Math.abs(bx)*.2,head);beard.rotation.z=Math.PI;}
   for(let i=0;i<5;i++){const braid=ball(mats.beard,0,-.09-i*.065,.145,.055-i*.004,.044,.043,head);}
@@ -133,7 +156,7 @@ export function createWorld(canvas){
   // Fur collar, deliberately irregular instead of a flat cartoon cape.
   const tuftCount=enemy?60:180;const tufts=new THREE.InstancedMesh(new THREE.ConeGeometry(.025,.13,5),mats.fur,tuftCount);const tuftTransform=new THREE.Object3D(),furRandom=randomFactory(911);
   for(let i=0;i<tuftCount;i++){const a=furRandom()*Math.PI*2,r=.20+furRandom()*.16;tuftTransform.position.set(Math.sin(a)*r,1.5+furRandom()*.04,Math.cos(a)*r*.70);tuftTransform.rotation.set(Math.cos(a)*.8,0,-Math.sin(a)*.8);tuftTransform.scale.setScalar(.65+furRandom()*.65);tuftTransform.updateMatrix();tufts.setMatrixAt(i,tuftTransform.matrix);}tufts.castShadow=true;rig.add(tufts);
-  const capeGeo=new THREE.PlaneGeometry(.58,.81,7,10);const pos=capeGeo.attributes.position;for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i);pos.setZ(i,.08+Math.sin(x*25)*.02+( .4-y)*.1);}capeGeo.computeVertexNormals();const cape=mesh(capeGeo,cloth,0,1.03,.21,rig);cape.rotation.y=Math.PI;
+  const capeGeo=new THREE.PlaneGeometry(.58,.81,7,10);const pos=capeGeo.attributes.position;for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i);pos.setZ(i,.08+Math.sin(x*25)*.035+(.4-y)*.1);if(y<-.30)pos.setY(i,y+Math.sin(x*31)*.055);}capeGeo.computeVertexNormals();const cape=mesh(capeGeo,cloth,0,1.03,.21,rig);cape.rotation.y=Math.PI;
   // Axe and round shield are carried by animated joints.
   const weapon=new THREE.Group();weapon.position.set(0,-.3,0);weapon.rotation.x=-.15;arms[1].elbow.add(weapon);cylinder(mats.wood,0,.23,0,.024,.027,1.0,weapon);
   const axeShape=new THREE.Shape();axeShape.moveTo(.025,.45);axeShape.lineTo(.25,.60);axeShape.quadraticCurveTo(.39,.33,.24,.17);axeShape.lineTo(.025,.28);axeShape.closePath();const axe=mesh(new THREE.ExtrudeGeometry(axeShape,{depth:.045,bevelEnabled:true,bevelThickness:.015,bevelSize:.008,bevelSegments:1}),mats.steel,0,0,-.023,weapon);box(mats.gold,0,.35,0,.08,.13,.075,weapon);
@@ -143,6 +166,7 @@ export function createWorld(canvas){
   if(boss){weapon.scale.set(1.7,1.4,1.7);shield.visible=false;for(const side of [-1,1]){beam(new THREE.Vector3(side*.12,1.97,0),new THREE.Vector3(side*.26,2.25,.015),.035,mats.gold,rig);}}
   // Health bar floats only above injured enemies.
   const health=new THREE.Group();health.position.y=2.35*scale;root.add(health);const bg=box(new THREE.MeshBasicMaterial({color:'#172428'}),0,0,0,.65,.05,.035,health);const fill=box(new THREE.MeshBasicMaterial({color:'#d7ac75'}),0,0,-.025,.62,.035,.012,health);health.visible=false;
+  batchStatic(head);for(const part of legs){batchStatic(part.ankle);batchStatic(part.knee,new Set([part.ankle]));batchStatic(part.hip,new Set([part.knee]));}for(const part of arms){batchStatic(part.elbow,new Set([weapon,shield]));batchStatic(part.shoulder,new Set([part.elbow]));}batchStatic(shield);batchStatic(rig,new Set([head,cape,...legs.map(l=>l.hip),...arms.map(a=>a.shoulder)]));
   return {root,rig,contact,legs,arms,head,cape,weapon,axeParts,sword,spear,shield,health,fill,scale,lastX:0,lastZ:0,stride:0,speed:0,type};
  }
  let orbit=0;
@@ -176,7 +200,7 @@ export function createWorld(canvas){
   if(Math.hypot(tx-oldX,tz-oldZ)>12||first)a.root.position.set(tx,.01,tz);else{a.root.position.x+=(tx-oldX)*Math.min(1,dt*23);a.root.position.z+=(tz-oldZ)*Math.min(1,dt*23);a.root.position.y=.01;}
   const travel=Math.min(.4,Math.hypot(a.root.position.x-oldX,a.root.position.z-oldZ));
   const measured=Math.hypot(s.vx||0,s.vy||0)*S;a.speed+=(measured-a.speed)*Math.min(1,dt*12);
-  const walking=a.speed>.18&&!rolling&&!dead;a.gaitBlend=(a.gaitBlend||0)+((walking?1:0)-(a.gaitBlend||0))*(1-Math.exp(-dt*12));const strideLength=s.sprinting?3.4:2.6;
+  const walking=a.speed>.18&&!rolling&&!dead;a.gaitBlend=(a.gaitBlend||0)+((walking?1:0)-(a.gaitBlend||0))*(1-Math.exp(-dt*12));const strideLength=s.sprinting?2.8:2.05;
   if(walking)a.stride+=travel/(strideLength*a.scale)*Math.PI*2;
   const bearing=rolling?s.dashAngle:s.angle,rotation=-bearing-Math.PI/2;
   const turn=Math.atan2(Math.sin(rotation-a.root.rotation.y),Math.cos(rotation-a.root.rotation.y));
@@ -189,7 +213,7 @@ export function createWorld(canvas){
   a.rig.scale.setScalar(a.scale);
   a.legs.forEach((leg,i)=>{
    const phase=a.stride+i*Math.PI,wave=Math.sin(phase),lift=Math.max(0,wave)*(s.sprinting?.22:.16)*gaitAmplitude;
-   const targetZ=Math.cos(phase)*(s.sprinting?.42:.32)*gaitAmplitude*forward,targetX=Math.cos(phase)*.16*gaitAmplitude*side;
+   const targetZ=Math.cos(phase)*(s.sprinting?.46:.37)*gaitAmplitude*forward,targetX=Math.cos(phase)*.16*gaitAmplitude*side;
    const down=.83-lift,L1=.44,L2=.41,d=Math.min(.849,Math.max(.45,Math.hypot(targetZ,down)));
    const hip=Math.atan2(-targetZ,down)+Math.acos(Math.max(-1,Math.min(1,(L1*L1+d*d-L2*L2)/(2*L1*d))));
    const knee=-(Math.PI-Math.acos(Math.max(-1,Math.min(1,(L1*L1+L2*L2-d*d)/(2*L1*L2)))));
@@ -197,7 +221,7 @@ export function createWorld(canvas){
    leg.ankle.rotation.x=-hip-knee+Math.max(0,-wave)*.10*gaitAmplitude;
   });
   a.arms.forEach((arm,i)=>{arm.shoulder.rotation.set(.18+(walking?Math.sin(a.stride+(1-i)*Math.PI)*(s.sprinting?.55:.36)*forward:0),0,i?-.12:.12);arm.elbow.rotation.x=s.sprinting?.9:.35;});
-  const attack=s.action,phase=s.actionDuration?Math.min(1,s.actionTime/s.actionDuration):0;
+  if(a.actionId!==s.actionId||a.actionName!==s.action){a.actionId=s.actionId;a.actionName=s.action;a.poseTime=s.actionTime||0;}else a.poseTime=Math.max(s.actionTime||0,Math.min(s.actionDuration||0,(a.poseTime||0)+dt));const attack=s.action,phase=s.actionDuration?Math.min(1,a.poseTime/s.actionDuration):0;
   if(['light1','light2','heavy','finisher'].includes(attack)){
    const heavy=attack==='heavy'||attack==='finisher',hit=heavy?.41:.33;
    const anticipation=Math.min(1,phase/hit),release=Math.min(1,Math.max(0,(phase-hit)/.30));
@@ -214,7 +238,7 @@ export function createWorld(canvas){
   if(s.swing>0){a.arms[1].shoulder.rotation.x=.7+s.swing*3;a.arms[1].elbow.rotation.x=.1;a.rig.rotation.x=.15;}
   if(s.stagger>0){a.rig.rotation.z=Math.sin(t*18)*.06;a.rig.rotation.x=-.2;}
   if(rolling){const r=Math.min(1,phase);a.rig.rotation.x=-Math.PI*2*r;a.rig.rotation.y=0;a.rig.position.y=Math.sin(Math.PI*r)*1.56;a.rig.scale.y=a.scale*.8;a.legs.forEach(l=>{l.hip.rotation.x=1.3;l.knee.rotation.x=-2;l.ankle.rotation.x=.7;});a.arms.forEach(x=>{x.shoulder.rotation.x=1.5;x.elbow.rotation.x=1.4;});}
-  a.cape.rotation.x=Math.sin(t*4)*.025+(walking?.10+a.speed*.018:0);a.head.rotation.z=Math.sin(t*.7)*.012;a.head.rotation.y=-a.rig.rotation.y*.35;const breath=1+Math.sin(t*1.8)*.004;a.rig.scale.y*=breath;a.contact.scale.setScalar(rolling?.65:1);
+  a.cape.rotation.x=Math.sin(t*3)*.025+(walking?.10+a.speed*.014:0);a.head.rotation.z=Math.sin(t*.7)*.012;a.head.rotation.y=-a.rig.rotation.y*.35;const breath=1+Math.sin(t*1.8)*.004;a.rig.scale.y*=breath;a.contact.scale.setScalar(rolling?.65:1);
   a.root.visible=!dead||(s.death||0)>0;
   if(dead){a.rig.rotation.z=Math.min(1,(1.4-s.death)*2)*1.48;a.rig.rotation.x=.15;}
   a.health.visible=a.type!=='player'&&s.hp>0&&s.hp<s.maxHp;a.health.quaternion.copy(camera.quaternion);a.fill.scale.x=Math.max(.001,s.hp/s.maxHp||1);a.fill.position.x=-(1-a.fill.scale.x)*.31;
@@ -236,7 +260,7 @@ export function createWorld(canvas){
   if(playing&&run)for(const e of [...run.enemies,run.boss])animateActor(actors.get(e.id),e,dt,t);
   const px=player.root.position.x,pz=player.root.position.z;
   const target=new THREE.Vector3(),desired=new THREE.Vector3();
-  if(playing){const lead=options.reducedMotion?0:.0025;target.set(px+(p.vx||0)*lead,1.0,pz+(p.vy||0)*lead-.35);desired.set(px+Math.sin(orbit)*(mode==='tactical'?12:8),mode==='tactical'?14.5:6.4,pz+Math.cos(orbit)*(mode==='tactical'?12:8));camera.fov+=((p.sprinting&&!options.reducedMotion?51:48)-camera.fov)*(1-Math.exp(-dt*3));}else{target.set(px-1.4,1.12,pz-.15);desired.set(px+2.4,3.1,pz+5.4);camera.fov=w<600?54:47;}
+  if(playing){const lead=options.reducedMotion?0:.0025;target.set(px+(p.vx||0)*lead,1.0,pz+(p.vy||0)*lead-.35);desired.set(px+Math.sin(orbit)*(mode==='tactical'?13:10.2),mode==='tactical'?15:8.5,pz+Math.cos(orbit)*(mode==='tactical'?13:10.2));camera.fov+=((p.sprinting&&!options.reducedMotion?51:50)-camera.fov)*(1-Math.exp(-dt*3));}else{target.set(px-.9,1.0,pz-.15);desired.set(px+2.3,3.3,pz+6.1);camera.fov=w<600?54:47;}
   if(first){camera.position.copy(desired);look.copy(target);}else{camera.position.lerp(desired,1-Math.exp(-dt*7));look.lerp(target,1-Math.exp(-dt*9));}camera.lookAt(look);camera.updateProjectionMatrix();
   sky.position.copy(camera.position);
   sun.position.set(px-8,22,pz+10);sun.target.position.set(px,0,pz-5);
@@ -254,7 +278,7 @@ export function createWorld(canvas){
    for(const effect of run.effects){if(effect.type==='blood'&&options.bloodFX!==false){const v=new THREE.Vector3(effect.x*S,.025,effect.y*S).project(camera);if(v.z<1){hud.fillStyle='rgba(100,15,20,'+Math.min(.55,effect.life*.4)+')';hud.beginPath();hud.ellipse((v.x+1)*w/2,(1-v.y)*h/2,12,4,-.2,0,Math.PI*2);hud.fill();}}if(effect.type==='hit'&&options.bloodFX!==false){const age=1-effect.life/effect.maxLife;for(let i=0;i<9;i++){const a=i*2.4+effect.x,spread=age*(.5+(i%3)*.22);const v=new THREE.Vector3(effect.x*S+Math.cos(a)*spread,Math.max(.05,1+age*.9-age*age*2.3),effect.y*S+Math.sin(a)*spread).project(camera);if(v.z<1){hud.fillStyle='rgba(155,24,29,'+(1-age*.8)+')';hud.beginPath();hud.ellipse((v.x+1)*w/2,(1-v.y)*h/2,2+(i%3),1.5+(i%2),a,0,Math.PI*2);hud.fill();}}}if(effect.type==='hit'){const v=new THREE.Vector3(effect.x*S,2+(1-effect.life/effect.maxLife)*.7,effect.y*S).project(camera);hud.fillStyle='#ffe0a4';hud.font='bold 16px Segoe UI';hud.fillText(effect.amount,(v.x+1)*w/2,(1-v.y)*h/2);}if(effect.type==='finisher'||effect.type==='parry'){const v=new THREE.Vector3(effect.x*S,1,effect.y*S).project(camera);hud.strokeStyle=effect.type==='parry'?'#b8edff':'#ffd590';hud.lineWidth=3;hud.beginPath();hud.arc((v.x+1)*w/2,(1-v.y)*h/2,30*(1-effect.life/effect.maxLife),0,Math.PI*2);hud.stroke();}if(effect.type==='hurt'){hud.fillStyle=`rgba(150,43,23,${effect.life*.22})`;hud.fillRect(0,0,w,h);}}
    const goal=run.bossDead?HOME:run.relic?BOSS:SHRINE;if(Math.hypot(goal.x-p.x,goal.y-p.y)>190){const v=new THREE.Vector3(goal.x*S,.5,goal.y*S).project(camera);const sx=(v.x+1)*w/2,sy=(1-v.y)*h/2,tx=Math.max(32,Math.min(w-32,sx)),ty=Math.max(180,Math.min(h-115,sy));hud.fillStyle='#f3d398';hud.font='18px Georgia';hud.fillText('◇',tx,ty);hud.font='8px Segoe UI';hud.fillText(run.bossDead?'HARBOUR':run.relic?'WARDEN':'SHRINE',tx,ty+17);}
   }
-  if(playing&&run){for(const spot of [{place:SAFEHOUSE,title:'E · HEARTHHALL'},...merchants]){if(Math.hypot(spot.place.x-p.x,spot.place.y-p.y)>420)continue;const v=new THREE.Vector3(spot.place.x*S,2.7,spot.place.y*S).project(camera);if(v.z<1&&Math.abs(v.x)<.94&&Math.abs(v.y)<.85){hud.font='bold 9px Segoe UI';hud.textAlign='center';hud.fillStyle='#fae0a6';hud.fillText(spot.title,(v.x+1)*w/2,(1-v.y)*h/2);}}if(options.lockedTarget!==null&&options.lockedTarget!==undefined){const locked=[...run.enemies,run.boss].find(e=>e.id===options.lockedTarget&&e.hp>0);if(locked){const v=new THREE.Vector3(locked.x*S,2.6,locked.y*S).project(camera);hud.fillStyle='#ffe3a4';hud.font='21px Georgia';hud.fillText('◇',(v.x+1)*w/2,(1-v.y)*h/2);}}}
+  if(playing&&run){for(const spot of [{place:SAFEHOUSE,title:'HEARTHHALL'},...merchants]){if(Math.hypot(spot.place.x-p.x,spot.place.y-p.y)>420)continue;const v=new THREE.Vector3(spot.place.x*S,2.7,spot.place.y*S).project(camera);if(v.z<1&&Math.abs(v.x)<.94&&Math.abs(v.y)<.85){hud.font='bold 9px Segoe UI';hud.textAlign='center';hud.fillStyle='#fae0a6';hud.fillText(spot.title,(v.x+1)*w/2,(1-v.y)*h/2);}}if(options.lockedTarget!==null&&options.lockedTarget!==undefined){const locked=[...run.enemies,run.boss].find(e=>e.id===options.lockedTarget&&e.hp>0);if(locked){const v=new THREE.Vector3(locked.x*S,2.6,locked.y*S).project(camera);hud.fillStyle='#ffe3a4';hud.font='21px Georgia';hud.fillText('◇',(v.x+1)*w/2,(1-v.y)*h/2);}}}
   first=false;
  }
  return {draw,aimAt,setOrbit(value){orbit=value;},setMode(value){mode=value;},setQuality(value){quality=value;renderer.setPixelRatio(value==='low'?1:Math.min(devicePixelRatio,1.6));renderer.shadowMap.enabled=value!=='low';grass.visible=value!=='low';resize();},getInfo(){return {engine:'Three.js',revision:THREE.REVISION,quality,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};}};
