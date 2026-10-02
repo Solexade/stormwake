@@ -1,3 +1,4 @@
+import {MOTION,locomotion} from './motion.js';
 import {HOME,SHRINE,BOSS,RELICS,walkable} from './world.js';
 import {loadoutStats,safeArea,WEAPONS,SAFEHOUSE,FORGE,SUPPLIES} from './catalog.js';
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -69,7 +70,7 @@ export function tick(s,dt,now=Date.now()){
  s.elapsed+=dt;s.sequence++;const stale=now-s.lastInputAt>700,input=stale?{}:s.input;
  const pressed={};for(const k of ['attack','heavy','combo','dodge','storm','potion'])pressed[k]=!!s.commands[k]||!!input[k]&&!s.held[k];s.commands={};s.held={...input};
  for(const k of ['dodge','storm','potionCooldown','invulnerable','dashing','slash','comboWindow','staminaDelay'])p[k]=Math.max(0,p[k]-dt);
- if(Number.isFinite(input.angle))p.angle+=clamp(angleDifference(input.angle,p.angle),-dt*13,dt*13);
+ if(Number.isFinite(input.angle))p.angle+=clamp(angleDifference(input.angle,p.angle),-dt*MOTION.turn,dt*MOTION.turn);
  if(p.action!=='idle'){p.actionTime+=dt;p.attack=Math.max(0,p.actionDuration-p.actionTime);const a=weaponAttack(p,p.action);if(a&&!p.hitDone&&p.actionTime>=a.hit){p.hitDone=true;resolveStrike(s);}if(p.actionTime>=p.actionDuration){p.action='idle';p.actionTime=0;p.attack=0;p.comboWindow=p.combo===1||p.combo===2?.72:0;}}
  if(pressed.combo&&(p.comboCharge||0)>=COMBO_HITS)s.buffer={kind:'combo',until:s.elapsed+1.2};
  else if((pressed.attack||pressed.heavy)&&s.buffer?.kind!=='combo')s.buffer={kind:pressed.heavy?'heavy':'attack',until:s.elapsed+.56};
@@ -82,8 +83,8 @@ export function tick(s,dt,now=Date.now()){
  p.sprinting=!!input.sprint&&mag>.1&&!p.guard&&p.action==='idle'&&p.stamina>5;
  if(p.sprinting){p.stamina=Math.max(0,p.stamina-16*dt);p.staminaDelay=.3;}
  if(p.guard){p.stamina=Math.max(0,p.stamina-5*dt);p.staminaDelay=.3;}
- const speed=(p.sprinting?370:s.relic==='raven'?295:260)*(p.guard?.43:ATTACKS[p.action]?.4:1);
- const smoothing=1-Math.exp(-(mag>.05?18:24)*dt);p.vx+=(dx*speed-p.vx)*smoothing;p.vy+=(dy*speed-p.vy)*smoothing;if(stale){p.vx=0;p.vy=0;}
+ const speed=(p.sprinting?MOTION.sprint:s.relic==='raven'?MOTION.raven:MOTION.jog)*(p.guard?.43:ATTACKS[p.action]?.4:1);
+ Object.assign(p,locomotion(p.vx,p.vy,dx,dy,speed,dt));if(stale){p.vx=0;p.vy=0;}
  if(p.dashing>0){const power=380+Math.sin(p.dashing/.34*Math.PI)*130;move(p,Math.cos(p.dashAngle)*power*dt,Math.sin(p.dashAngle)*power*dt);p.vx=Math.cos(p.dashAngle)*power;p.vy=Math.sin(p.dashAngle)*power;}
  else{const oldX=p.x,oldY=p.y;move(p,p.vx*dt,p.vy*dt);if(p.x===oldX)p.vx=0;if(p.y===oldY)p.vy=0;}
  if(Math.hypot(p.vx,p.vy)>10)p.moveAngle=Math.atan2(p.vy,p.vx);

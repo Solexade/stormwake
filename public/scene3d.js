@@ -1,3 +1,4 @@
+import {applyPhotographicMaterials,needleMaterial} from './realism.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import * as THREE from './vendor/three.module.js';
 import {LAND,BRIDGES,HOME,SHRINE,BOSS,OBSTACLES,landAt} from './game.js';
@@ -14,8 +15,8 @@ export function createWorld(canvas){
  renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.98;
  const scene=new THREE.Scene();scene.background=new THREE.Color('#607b83');scene.fog=new THREE.FogExp2('#607b83',.024);
  const camera=new THREE.PerspectiveCamera(48,1,.08,190);const look=new THREE.Vector3(HOME.x*S,1,HOME.y*S);let first=true,mode='follow',quality='high';
- const hemi=new THREE.HemisphereLight('#b6c8d1','#293c32',1.7);scene.add(hemi);
- const sun=new THREE.DirectionalLight('#f5cf9a',2.65);sun.position.set(10,23,13);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-19;sun.shadow.camera.right=19;sun.shadow.camera.top=19;sun.shadow.camera.bottom=-19;sun.shadow.camera.far=70;sun.shadow.radius=3;sun.shadow.normalBias=.018;sun.shadow.bias=-.0003;scene.add(sun,sun.target);
+ const hemi=new THREE.HemisphereLight('#b6c8d1','#293c32',.7);scene.add(hemi);
+ const sun=new THREE.DirectionalLight('#f5cf9a',2.3);sun.position.set(10,23,13);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-19;sun.shadow.camera.right=19;sun.shadow.camera.top=19;sun.shadow.camera.bottom=-19;sun.shadow.camera.far=70;sun.shadow.radius=3;sun.shadow.normalBias=.018;sun.shadow.bias=-.0003;scene.add(sun,sun.target);
  const rim=new THREE.DirectionalLight('#abcde8',.75);rim.position.set(-30,15,-35);scene.add(rim);
  // A softly lit studio sky supplies reflections for steel and worn brass.
  const environmentScene=new THREE.Scene();environmentScene.background=new THREE.Color('#b7c6cd');
@@ -50,12 +51,14 @@ export function createWorld(canvas){
   glow:new THREE.MeshStandardMaterial({color:'#b9e9df',emissive:'#7bcec6',emissiveIntensity:2,roughness:.2,metalness:.3}),
   fire:new THREE.MeshBasicMaterial({color:'#ffcf80'}),
  };
- const boxGeo=new THREE.BoxGeometry(1,1,1),sphereGeo=new THREE.SphereGeometry(1,18,12),rockGeo=new THREE.DodecahedronGeometry(1,1),cylinderGeo=new THREE.CylinderGeometry(1,1,1,12);
+ applyPhotographicMaterials(renderer,scene,mats,canvas);
+ const boxGeo=new THREE.BoxGeometry(1,1,1),sphereGeo=new THREE.SphereGeometry(1,18,12),rockGeo=new THREE.IcosahedronGeometry(1,3),cylinderGeo=new THREE.CylinderGeometry(1,1,1,12);
  function mesh(geo,mat,x=0,y=0,z=0,parent=scene){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);count++;return m;}
  const box=(mat,x,y,z,sx,sy,sz,parent=scene)=>{const m=mesh(boxGeo,mat,x,y,z,parent);m.scale.set(sx,sy,sz);return m;};
  const ball=(mat,x,y,z,sx,sy,sz,parent=scene)=>{const m=mesh(sphereGeo,mat,x,y,z,parent);m.scale.set(sx,sy,sz);return m;};
  function cylinder(mat,x,y,z,rt,rb,h,parent=scene,n=12){return mesh(new THREE.CylinderGeometry(rt,rb,h,n),mat,x,y,z,parent);}
  function beam(a,b,r,mat,parent=scene){const d=new THREE.Vector3().subVectors(b,a);const m=mesh(cylinderGeo,mat,0,0,0,parent);m.position.copy(a).add(b).multiplyScalar(.5);m.scale.set(r,d.length(),r);m.quaternion.setFromUnitVectors(UP,d.normalize());return m;}
+ const rp=rockGeo.attributes.position;for(let i=0;i<rp.count;i++){const x=rp.getX(i),y=rp.getY(i),z=rp.getZ(i),f=1+.11*Math.sin(x*8+z*5)*Math.cos(y*9)+.045*Math.sin(z*19+x*11);rp.setXYZ(i,x*f,y*f,z*f);}rockGeo.computeVertexNormals();
  function rock(x,z,size,mat=mats.stone){const m=mesh(rockGeo,mat,x,size*.27-.15,z);m.scale.set(size,size*.74,size*.85);m.rotation.set(random()*.4,random()*7,random()*.4);return m;}
 
  // Smooth tapered forms replace the separated bead-like limbs.
@@ -95,12 +98,15 @@ export function createWorld(canvas){
  const boat=longboat();
  const foliage=[];
  // Spruce silhouettes are layered, irregular and shaded with real lighting.
- const crownGeo=new THREE.SphereGeometry(1,9,6);const cv=crownGeo.attributes.position;for(let i=0;i<cv.count;i++){const f=.78+random()*.32;cv.setXYZ(i,cv.getX(i)*f,cv.getY(i)*f,cv.getZ(i)*f);}crownGeo.computeVertexNormals();
+ const needles=needleMaterial(),branchCard=new THREE.PlaneGeometry(1,1);
  for(let i=0;i<105;i++){const x=250+random()*1990,z=300+random()*1330;if(!landAt(x-35,z)||!landAt(x+35,z)||!landAt(x,z-40))continue;if([HOME,SHRINE,BOSS,{x:580,y:720}].some(p=>Math.hypot(p.x-x,p.y-z)<190))continue;if(z>1120&&x<870)continue;if(paths.some(p=>p.some(([a,b])=>Math.hypot(a-x,b-z)<95)))continue;if(x>1600&&z<890)continue;
-  const h=3+random()*2.2;cylinder(mats.darkwood,x*S,h*.43,z*S,.06,.15,h*.86,scene,7);
+  const h=3.8+random()*2.5;cylinder(mats.darkwood,x*S,h*.48,z*S,.025,.14,h*.96,scene,9);
   const crown=new THREE.Group();crown.position.set(x*S,0,z*S);scene.add(crown);
-  for(let j=0;j<12;j++){const a=j*2.4,r=(1-j/15)*h*.22;const b=mesh(crownGeo,j%3?mats.pine:mats.pineLight,Math.cos(a)*r*.55,h*(.33+j*.044),Math.sin(a)*r*.55,crown);b.scale.set(r,.20+r*.28,r*.58);b.rotation.y=-a;}
-  batchStatic(crown);foliage.push({mesh:crown,x:crown.position.x,z:crown.position.z,phase:random()*6,strength:.007});
+  for(let j=0;j<9;j++){const y=h*(.22+j*.081),length=h*.25*(1-j/10);for(let k=0;k<5;k++){
+   const angle=k*Math.PI*2/5+j*1.3,tip=new THREE.Vector3(Math.cos(angle)*length,y-.16,Math.sin(angle)*length);
+   beam(new THREE.Vector3(0,y,0),tip,.014,mats.darkwood,crown);
+   for(let n=0;n<3;n++){const card=mesh(branchCard,needles,tip.x*(.35+n*.23),y-.05,tip.z*(.35+n*.23),crown);card.scale.set(length*.8,length*1.15,1);card.rotation.set(-Math.PI*.36,angle+n*.55,0);card.castShadow=false;}
+  }}batchStatic(crown);foliage.push({mesh:crown,x:crown.position.x,z:crown.position.z,phase:random()*6,strength:.005});
  }
 
  OBSTACLES.forEach(o=>rock(o.x*S,o.y*S,o.r*S));
@@ -154,8 +160,8 @@ export function createWorld(canvas){
   cylinder(mats.gold,0,-.23,-.12,.035,.035,.035,head,10);
   if(enemy){const helmet=mesh(new THREE.SphereGeometry(.158,14,8,0,Math.PI*2,0,Math.PI/2),mats.metal,0,.10,0,head);box(mats.metal,0,.071,-.155,.035,.20,.045,head);}
   // Fur collar, deliberately irregular instead of a flat cartoon cape.
-  const tuftCount=enemy?60:180;const tufts=new THREE.InstancedMesh(new THREE.ConeGeometry(.025,.13,5),mats.fur,tuftCount);const tuftTransform=new THREE.Object3D(),furRandom=randomFactory(911);
-  for(let i=0;i<tuftCount;i++){const a=furRandom()*Math.PI*2,r=.20+furRandom()*.16;tuftTransform.position.set(Math.sin(a)*r,1.5+furRandom()*.04,Math.cos(a)*r*.70);tuftTransform.rotation.set(Math.cos(a)*.8,0,-Math.sin(a)*.8);tuftTransform.scale.setScalar(.65+furRandom()*.65);tuftTransform.updateMatrix();tufts.setMatrixAt(i,tuftTransform.matrix);}tufts.castShadow=true;rig.add(tufts);
+  const tuftCount=enemy?45:90;const tufts=new THREE.InstancedMesh(new THREE.ConeGeometry(.016,.075,5),mats.fur,tuftCount);const tuftTransform=new THREE.Object3D(),furRandom=randomFactory(911);
+  for(let i=0;i<tuftCount;i++){const a=furRandom()*Math.PI*2,r=.17+furRandom()*.11;tuftTransform.position.set(Math.sin(a)*r,1.5+furRandom()*.04,Math.cos(a)*r*.70);tuftTransform.rotation.set(Math.cos(a)*.8,0,-Math.sin(a)*.8);tuftTransform.scale.setScalar(.65+furRandom()*.65);tuftTransform.updateMatrix();tufts.setMatrixAt(i,tuftTransform.matrix);}tufts.castShadow=true;rig.add(tufts);
   const capeGeo=new THREE.PlaneGeometry(.58,.81,7,10);const pos=capeGeo.attributes.position;for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i);pos.setZ(i,.08+Math.sin(x*25)*.035+(.4-y)*.1);if(y<-.30)pos.setY(i,y+Math.sin(x*31)*.055);}capeGeo.computeVertexNormals();const cape=mesh(capeGeo,cloth,0,1.03,.21,rig);cape.rotation.y=Math.PI;
   // Axe and round shield are carried by animated joints.
   const weapon=new THREE.Group();weapon.position.set(0,-.3,0);weapon.rotation.x=-.15;arms[1].elbow.add(weapon);cylinder(mats.wood,0,.23,0,.024,.027,1.0,weapon);
@@ -197,10 +203,10 @@ export function createWorld(canvas){
   let px=s.x,py=s.y;
   for(let elapsed=0;elapsed<horizon;elapsed+=.02){const step=Math.min(.02,horizon-elapsed),dx=(s.vx||0)*step,dy=(s.vy||0)*step;if(walkable(px+dx,py,16))px+=dx;if(walkable(px,py+dy,16))py+=dy;}
   const tx=px*S,tz=py*S,oldX=a.root.position.x,oldZ=a.root.position.z;
-  if(Math.hypot(tx-oldX,tz-oldZ)>12||first)a.root.position.set(tx,.01,tz);else{a.root.position.x+=(tx-oldX)*Math.min(1,dt*23);a.root.position.z+=(tz-oldZ)*Math.min(1,dt*23);a.root.position.y=.01;}
+  if(s.preview||Math.hypot(tx-oldX,tz-oldZ)>12||first)a.root.position.set(tx,.01,tz);else{a.root.position.x+=(tx-oldX)*Math.min(1,dt*23);a.root.position.z+=(tz-oldZ)*Math.min(1,dt*23);a.root.position.y=.01;}
   const travel=Math.min(.4,Math.hypot(a.root.position.x-oldX,a.root.position.z-oldZ));
-  const measured=Math.hypot(s.vx||0,s.vy||0)*S;a.speed+=(measured-a.speed)*Math.min(1,dt*12);
-  const walking=a.speed>.18&&!rolling&&!dead;a.gaitBlend=(a.gaitBlend||0)+((walking?1:0)-(a.gaitBlend||0))*(1-Math.exp(-dt*12));const strideLength=s.sprinting?2.8:2.05;
+  const measured=Math.hypot(s.vx||0,s.vy||0)*S;a.speed+=(measured-a.speed)*Math.min(1,dt*22);
+  const walking=a.speed>.18&&!rolling&&!dead;a.gaitBlend=(a.gaitBlend||0)+((walking?1:0)-(a.gaitBlend||0))*(1-Math.exp(-dt*12));const strideLength=s.sprinting?3.4:2.8;
   if(walking)a.stride+=travel/(strideLength*a.scale)*Math.PI*2;
   const bearing=rolling?s.dashAngle:s.angle,rotation=-bearing-Math.PI/2;
   const turn=Math.atan2(Math.sin(rotation-a.root.rotation.y),Math.cos(rotation-a.root.rotation.y));
@@ -260,7 +266,7 @@ export function createWorld(canvas){
   if(playing&&run)for(const e of [...run.enemies,run.boss])animateActor(actors.get(e.id),e,dt,t);
   const px=player.root.position.x,pz=player.root.position.z;
   const target=new THREE.Vector3(),desired=new THREE.Vector3();
-  if(playing){const lead=options.reducedMotion?0:.0025;target.set(px+(p.vx||0)*lead,1.0,pz+(p.vy||0)*lead-.35);desired.set(px+Math.sin(orbit)*(mode==='tactical'?13:10.2),mode==='tactical'?15:8.5,pz+Math.cos(orbit)*(mode==='tactical'?13:10.2));camera.fov+=((p.sprinting&&!options.reducedMotion?51:50)-camera.fov)*(1-Math.exp(-dt*3));}else{target.set(px-.9,1.0,pz-.15);desired.set(px+2.3,3.3,pz+6.1);camera.fov=w<600?54:47;}
+  if(playing){const lead=options.reducedMotion?0:.0025;target.set(px+(p.vx||0)*lead,1.0,pz+(p.vy||0)*lead-.35);desired.set(px+Math.sin(orbit)*(mode==='tactical'?13:8.2),mode==='tactical'?15:5.6,pz+Math.cos(orbit)*(mode==='tactical'?13:8.2));camera.fov+=((p.sprinting&&!options.reducedMotion?51:50)-camera.fov)*(1-Math.exp(-dt*3));}else{target.set(px-.9,1.0,pz-.15);desired.set(px+2.3,3.3,pz+6.1);camera.fov=w<600?54:47;}
   if(first){camera.position.copy(desired);look.copy(target);}else{camera.position.lerp(desired,1-Math.exp(-dt*7));look.lerp(target,1-Math.exp(-dt*9));}camera.lookAt(look);camera.updateProjectionMatrix();
   sky.position.copy(camera.position);
   sun.position.set(px-8,22,pz+10);sun.target.position.set(px,0,pz-5);
