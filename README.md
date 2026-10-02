@@ -2,7 +2,7 @@
 
 An original browser adventure by **[@oxsolexade](https://x.com/oxsolexade)**. Version 0.5 is a playable **3D prototype**, with an original articulated Norse adventurer, textured environments, animated water, shadows and a perspective follow camera. The visual style is grounded, stylized fantasy; it is not photorealistic or a production release. The community token $WAKE has launched on vibe/vibe testnet; token utility is not integrated into gameplay.
 
-All game models, procedural textures, story and synthesized sound are included locally. Three.js r180 is bundled under its MIT license in `public/vendor/THREE-LICENSE.txt`; playing does not require a CDN or external asset downloads. The renderer requires WebGL 2. Use **Performance** mode if your device struggles with shadows, or **Tactical view** for a wider camera.
+Game models, story and synthesized sound are included locally. Photo-based environment textures and HDR lighting are CC0 assets from Poly Haven; see THIRD_PARTY.md. Three.js r180 is bundled under its MIT license in `public/vendor/THREE-LICENSE.txt`; playing does not require a CDN or external asset downloads. The renderer requires WebGL 2. Use **Performance** mode if your device struggles with shadows, or **Tactical view** for a wider camera.
 
 ## Run
 
@@ -107,7 +107,7 @@ The server advances combat from elapsed wall-clock time on each input request, w
 The local npm start preview still uses SQLite and a continuous game loop. Local guest data is not automatically uploaded to cloud production.
 
 ## Focused play update
-Starting or resuming an expedition enters a viewport-sized play mode with no page scrolling or permanent story sidebar. Wallet, Tasks and Pause remain available at the top. Pause/Tasks freezes server combat and expedition time; closing resumes the run. Return to harbour is available in Pause. Reduced motion quiets water/boat motion, and sound, blood effects and graphics controls are available in Pause. Touch layouts adapt to portrait and landscape with safe-area spacing. Normal movement is 260 units/s and sprint is 370, with faster acceleration/braking, longer strides, turn lean and bounded collision-aware visual extrapolation.
+Starting or resuming an expedition enters a viewport-sized play mode with no page scrolling or permanent story sidebar. Wallet, Tasks and Pause remain available at the top. Pause/Tasks freezes server combat and expedition time; closing resumes the run. Return to harbour is available in Pause. Reduced motion quiets water/boat motion, and sound, blood effects and graphics controls are available in Pause. Touch layouts adapt to portrait and landscape with safe-area spacing. Normal movement is 310 units/s and sprint is 440, with faster acceleration/braking, longer strides, turn lean and bounded collision-aware visual extrapolation.
 
 This remains a stylized solo prototype. Additional islands, daily quests, motion-captured animations and real-device mobile performance validation are future work; no token rewards are promised.
 
@@ -116,3 +116,8 @@ Wallet sign-in was temporarily disabled in this release; it is restored in the u
 
 ## Optional wallet sign-in restored
 Connect wallet opens a provider menu with an explicit Disconnect action. Guests can still play and use recovery keys. Sign-in is a message signature; arrival transactions remain disabled. Connecting pauses an active expedition. First linking a guest profile revokes old guest sessions and recovery keys; create a fresh recovery key after linking. Switching profiles and disconnecting pause the prior expedition rather than abandoning it.
+
+
+## October material and responsiveness update
+
+Local photographic ground, rock and timber maps use normal and roughness detail with HDR reflections. Spruce foliage uses alpha-cutout needles; original character meshes remain stylized. Shared locomotion tuning now gives faster acceleration, braking and direction changes. The renderer displays local predicted movement without an extra position smoothing layer. Input changes during requests are queued; mobile joystick movement uses a radial deadzone and curved response. Server authority over collisions, stamina, damage and rewards remains unchanged.
