@@ -41,8 +41,8 @@ test('context actions appear only near valid objects and disappear after opening
 test('three landed melee strikes unlock one combo; misses and forged charge do not',()=>{
  const s=createRun('charge',0);let clock=0;const advance=n=>{for(let i=0;i<n;i++){clock+=20;s.lastInputAt=clock;tick(s,.02,clock);}};
  const strike=hit=>{Object.assign(s.player,{...HOME,angle:0,stamina:100,action:'idle',comboWindow:0,combo:0});Object.assign(s.enemies[0],{x:HOME.x+(hit?65:600),y:HOME.y,homeX:HOME.x+(hit?65:600),homeY:HOME.y,hp:1000,cd:99});setInput(s,{attack:true,attackId:clock+1,angle:0},clock);advance(1);setInput(s,{angle:0},clock);advance(24);};
- strike(false);assert.equal(s.player.comboCharge,0);setInput(s,{combo:true,comboId:1,comboCharge:3},clock);advance(1);assert.notEqual(s.player.action,'finisher');
- for(let i=0;i<COMBO_HITS;i++)strike(true);assert.equal(s.player.comboCharge,COMBO_HITS);
+ strike(false);assert.equal(s.player.comboCharge,0);assert.equal(s.events.some(e=>e.type==='strike'),false,'a miss makes no impact sound');setInput(s,{combo:true,comboId:1,comboCharge:3},clock);advance(1);assert.notEqual(s.player.action,'finisher');
+ for(let i=0;i<COMBO_HITS;i++)strike(true);assert.equal(s.player.comboCharge,COMBO_HITS);assert.equal(s.events.filter(e=>e.type==='strike').length,3,'landed swings each produce one impact event');
  s.player.stamina=0;setInput(s,{combo:true,comboId:2},clock);advance(1);assert.equal(s.player.comboCharge,COMBO_HITS,'insufficient stamina retains earned combo');
  s.player.stamina=100;setInput(s,{combo:true,comboId:3},clock);advance(1);assert.equal(s.player.action,'finisher');assert.equal(s.player.comboCharge,0);
  setInput(s,{},clock);advance(50);setInput(s,{combo:true,comboId:3},clock);advance(1);assert.notEqual(s.player.action,'finisher','replay cannot fire a second combo');
