@@ -16,3 +16,19 @@ test('movement remains frame-rate independent and diagonal speed is bounded',()=
  assert.ok(Math.abs(low.vx-high.vx)<.001);
  assert.ok(Math.abs(Math.hypot(diagonal.vx,diagonal.vy)-high.vx)<.001);
 });
+
+import {MovementPreview} from '../public/movement-preview.js';
+function previewAt(hz){
+ const preview=new MovementPreview();
+ preview.sync({id:'test',status:'active',player:{x:465,y:1410,vx:310,vy:0,angle:0,action:'idle',stamina:100}},0);
+ for(let i=1;i<=hz/2;i++)preview.step({dx:1,dy:0,angle:0},1/hz,i*1000/hz);
+ return preview;
+}
+test('preview covers the same distance at 10, 20 and 120 FPS',()=>{
+ const reference=previewAt(120).player;
+ for(const hz of [10,20,30,60])assert.ok(Math.abs(previewAt(hz).player.x-reference.x)<.01,`preview drift at ${hz} FPS`);
+});
+test('preview stops after stale server data and does not catch up a suspended tab',()=>{
+ const preview=previewAt(60),pose=preview.step({dx:1},10,10000);
+ assert.equal(pose.x,465);assert.equal(pose.vx,0);
+});
