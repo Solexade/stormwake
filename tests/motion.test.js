@@ -32,3 +32,16 @@ test('preview stops after stale server data and does not catch up a suspended ta
  const preview=previewAt(60),pose=preview.step({dx:1},10,10000);
  assert.equal(pose.x,465);assert.equal(pose.vx,0);
 });
+
+test('stationary stale authority cannot brake fresh movement or pull a reversal backwards',()=>{
+ const preview=new MovementPreview();
+ const run={id:'latency',status:'active',player:{x:465,y:1410,vx:0,vy:0,angle:0,action:'idle',stamina:100}};
+ preview.sync(run,0);
+ for(let i=1;i<=24;i++)preview.step({dx:1,angle:0},1/60,i*1000/60);
+ assert.ok(preview.player.x>570,'400ms without a reply must not tether the player to spawn');
+ const before=preview.player.x;
+ preview.sync(run,400,0);
+ assert.equal(preview.player.x,before,'delayed response must not snap the current display back');
+ for(let i=25;i<=31;i++)preview.step({dx:-1,angle:Math.PI},1/60,i*1000/60);
+ assert.ok(preview.player.x<before-15,'reversal responds locally before server acknowledgement');
+});
