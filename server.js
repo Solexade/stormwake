@@ -164,9 +164,10 @@ const server=http.createServer(async(req,res)=>{
     const files={'/':'index.html','/index.html':'index.html','/style.css':'style.css','/app.js':'app.js','/game.js':'game.js','/world.js':'world.js','/combat.js':'combat.js','/catalog.js':'catalog.js','/wallet.js':'wallet.js','/scene3d.js':'scene3d.js','/icon.svg':'icon.svg','/vendor/three.module.js':'vendor/three.module.js','/vendor/three.core.min.js':'vendor/three.core.min.js','/vendor/THREE-LICENSE.txt':'vendor/THREE-LICENSE.txt'};
     files['/vendor/BufferGeometryUtils.js']='vendor/BufferGeometryUtils.js';files['/adventure.js']='adventure.js';files['/movement-preview.js']='movement-preview.js';
     files['/motion.js']='motion.js';files['/realism.js']='realism.js';files['/vendor/HDRLoader.js']='vendor/HDRLoader.js';
-    if(/^\/assets\/[a-z0-9_]+\.(jpg|hdr)$/.test(url.pathname))files[url.pathname]=url.pathname.slice(1);
+    for(const file of ['audio.js','characters.js','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
+    if(/^\/assets\/[a-z0-9_]+\.(jpg|hdr|glb)$/.test(url.pathname))files[url.pathname]=url.pathname.slice(1);
     const file=files[url.pathname];if(!file){res.writeHead(404);return res.end('Not found');}
-    const bytes=await readFile(path.join(ROOT,'public',file));const types={'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.jpg':'image/jpeg','.hdr':'application/octet-stream'};
+    const bytes=await readFile(path.join(ROOT,'public',file));const types={'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.jpg':'image/jpeg','.hdr':'application/octet-stream','.glb':'model/gltf-binary'};
     res.writeHead(200,{'Content-Type':types[path.extname(file)],'Cache-Control':'no-cache','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});res.end(req.method==='HEAD'?undefined:bytes);
   }catch(e){console.error(e.message);if(!res.headersSent)json(res,400,{error:'The request could not be completed. Please try again.'});else res.end();}
 });

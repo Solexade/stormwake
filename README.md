@@ -121,3 +121,11 @@ Connect wallet opens a provider menu with an explicit Disconnect action. Guests 
 ## October material and responsiveness update
 
 Local photographic ground, rock and timber maps use normal and roughness detail with HDR reflections. Spruce foliage uses alpha-cutout needles; original character meshes remain stylized. Shared locomotion tuning now gives faster acceleration, braking and direction changes. The renderer displays local predicted movement without an extra position smoothing layer. Input changes during requests are queued; mobile joystick movement uses a radial deadzone and curved response. Server authority over collisions, stamina, damage and rewards remains unchanged.
+
+
+### October 6: sound, rigged characters and movement
+- Original synthesized adventure score, battle pulse, footsteps and layered combat/loot sounds; Sound controls all audio, Pause > Music controls the score separately.
+- Audio unlocks on the expedition button gesture; background tabs suspend playback.
+- Quaternius CC0 knight and helmet replace primitive character bodies, with blended idle/walk/run/roll/attack clips. This is stylized art, not photorealism. Existing models remain a load-failure fallback.
+- Shared swept movement prevents large rolls/lunges crossing cottage walls, with tangential sliding at rotated walls and foundation-sized collision boxes.
+- Faster acceleration, braking and reversal, retaining authoritative collision and rewards.

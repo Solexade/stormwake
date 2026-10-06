@@ -25,3 +25,11 @@ The locally hosted 1K diffuse, OpenGL normal and roughness maps come from:
 
 License: https://polyhaven.com/license — CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/
 These free public-domain assets are hosted locally; the game makes no requests to Poly Haven. Material tint, scale and normal strength are adjusted in code.
+
+
+## Animated knight
+Quaternius Animated Knight Pack (CC0): https://quaternius.com/packs/knightcharacter.html
+Source FBX from https://opengameart.org/content/lowpoly-animated-knight converted to GLB with Three.js. GLTFLoader and SkeletonUtils use the existing Three.js MIT license.
+
+## Music and effects
+The adventure score, footsteps and layered effects in audio.js are original procedural synthesis. No external recordings, subscription or attribution requirement.
