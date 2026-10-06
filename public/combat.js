@@ -1,5 +1,5 @@
 import {MOTION,locomotion} from './motion.js';
-import {HOME,SHRINE,BOSS,RELICS,walkable} from './world.js';
+import {HOME,SHRINE,BOSS,RELICS,walkable,moveBody} from './world.js';
 import {loadoutStats,safeArea,WEAPONS,SAFEHOUSE,FORGE,SUPPLIES} from './catalog.js';
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const angleDifference=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
@@ -19,7 +19,7 @@ export const ATTACKS={
  finisher:{name:'Stormbreaker',duration:.78,hit:.32,damage:72,cost:22,range:155,arc:2.8,lunge:37,stagger:.72},
  heavy:{name:'Cleave',duration:.82,hit:.34,damage:51,cost:23,range:135,arc:1.9,lunge:25,stagger:.48}
 };
-function move(a,dx,dy,r=16){const x=a.x,y=a.y;if(walkable(a.x+dx,a.y,r))a.x+=dx;if(walkable(a.x,a.y+dy,r))a.y+=dy;return Math.hypot(a.x-x,a.y-y);}
+const move=moveBody;
 function chase(e,p,speed,dt){const angle=Math.atan2(p.y-e.y,p.x-e.x);if(move(e,Math.cos(angle)*speed*dt,Math.sin(angle)*speed*dt,18)<speed*dt*.25){for(const side of [1,-1])if(move(e,Math.cos(angle+side*.95)*speed*dt,Math.sin(angle+side*.95)*speed*dt,18)>0)break;}}
 export function weaponAttack(p,key){const a=ATTACKS[key];if(!a)return null;const w=WEAPONS[p.weapon]||WEAPONS.axe;return {...a,damage:Math.round(a.damage*w.damage),duration:a.duration*w.speed,hit:a.hit*w.speed,range:a.range*w.reach,cost:Math.ceil(a.cost*w.cost),arc:p.weapon==='spear'?a.arc*.6:a.arc};}
 export function createRun(id,now=Date.now(),options={}){

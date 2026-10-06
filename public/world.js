@@ -11,7 +11,7 @@ export const HOME = {x:465,y:1410};
 export const SHRINE = {x:1135,y:815};
 export const BOSS = {x:1910,y:560};
 export const OBSTACLES = [{x:1210,y:1040,r:56},{x:1015,y:640,r:45},{x:1710,y:385,r:42},{x:2110,y:740,r:55},{x:600,y:565,r:42},{x:700,y:1520,r:52}];
-export const STRUCTURES = [{x:420,y:1240,w:122,h:101,angle:-.15},{x:660,y:1390,w:112,h:96,angle:.1},{x:760,y:1580,w:89,h:78,angle:.35}];
+export const STRUCTURES = [{x:420,y:1240,w:126,h:101,angle:-.15},{x:660,y:1390,w:114,h:96,angle:.1},{x:760,y:1580,w:90,h:78,angle:.35}];
 export const RELICS = {
   storm: {name:'Stormglass axe',text:'Your strikes arc to a nearby foe. Base damage drops to 19.',color:'#8addfa'},
   raven: {name:'Raven feather',text:'Dodge more often and move faster. Maximum health drops to 80.',color:'#cbacff'}
@@ -29,4 +29,25 @@ export function landAt(x,y) {
 }
 export function walkable(x,y,r=16) {
   return [[x+r,y],[x-r,y],[x,y+r],[x,y-r]].every(([a,b])=>landAt(a,b)) && !OBSTACLES.some(o=>Math.hypot(x-o.x,y-o.y)<r+o.r) && !STRUCTURES.some(o=>{const dx=x-o.x,dy=y-o.y,c=Math.cos(o.angle),s=Math.sin(o.angle);return Math.abs(c*dx-s*dy)<o.w/2+r&&Math.abs(s*dx+c*dy)<o.h/2+r;});
+}
+
+// Shared swept movement keeps rolls, lunges and prediction outside solid geometry.
+export function moveBody(body,dx,dy,r=16){
+ const x=body.x,y=body.y,steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/4)),sx=dx/steps,sy=dy/steps;
+ for(let i=0;i<steps;i++){
+  if(walkable(body.x+sx,body.y+sy,r)){body.x+=sx;body.y+=sy;continue;}
+  const beforeX=body.x,beforeY=body.y;
+  if(walkable(body.x+sx,body.y,r))body.x+=sx;
+  if(walkable(body.x,body.y+sy,r))body.y+=sy;
+  if(body.x===beforeX&&body.y===beforeY){
+   // Project onto rotated wall tangents; axis-only sliding sticks on angled walls.
+   for(const o of STRUCTURES){
+    const c=Math.cos(o.angle),s=Math.sin(o.angle),lx=c*(body.x-o.x)-s*(body.y-o.y),ly=s*(body.x-o.x)+c*(body.y-o.y);
+    if(Math.abs(lx)>o.w/2+r+8||Math.abs(ly)>o.h/2+r+8)continue;
+    const side=Math.abs(lx)/(o.w/2+r)>Math.abs(ly)/(o.h/2+r),tx=side?s:c,ty=side?c:-s,dot=sx*tx+sy*ty;
+    if(walkable(body.x+tx*dot,body.y+ty*dot,r)){body.x+=tx*dot;body.y+=ty*dot;break;}
+   }
+  }
+ }
+ return Math.hypot(body.x-x,body.y-y);
 }

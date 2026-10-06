@@ -1,3 +1,4 @@
+import {dressWarrior,animateAvatar} from './characters.js';
 import {applyPhotographicMaterials,needleMaterial} from './realism.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import * as THREE from './vendor/three.module.js';
@@ -175,7 +176,7 @@ export function createWorld(canvas){
   // Health bar floats only above injured enemies.
   const health=new THREE.Group();health.position.y=2.35*scale;root.add(health);const bg=box(new THREE.MeshBasicMaterial({color:'#172428'}),0,0,0,.65,.05,.035,health);const fill=box(new THREE.MeshBasicMaterial({color:'#d7ac75'}),0,0,-.025,.62,.035,.012,health);health.visible=false;
   batchStatic(head);for(const part of legs){batchStatic(part.ankle);batchStatic(part.knee,new Set([part.ankle]));batchStatic(part.hip,new Set([part.knee]));}for(const part of arms){batchStatic(part.elbow,new Set([weapon,shield]));batchStatic(part.shoulder,new Set([part.elbow]));}batchStatic(shield);batchStatic(rig,new Set([head,cape,...legs.map(l=>l.hip),...arms.map(a=>a.shoulder)]));
-  return {root,rig,contact,legs,arms,head,cape,weapon,axeParts,sword,spear,shield,health,fill,scale,lastX:0,lastZ:0,stride:0,speed:0,type};
+  const actor={root,rig,contact,legs,arms,head,cape,weapon,axeParts,sword,spear,shield,health,fill,scale,lastX:0,lastZ:0,stride:0,speed:0,type};dressWarrior(actor,canvas);return actor;
  }
  let orbit=0;
  const player=warrior('player');const actors=new Map();let actorRun='';
@@ -250,6 +251,7 @@ export function createWorld(canvas){
   a.cape.rotation.x=Math.sin(t*3)*.025+(walking?.10+a.speed*.014:0);a.head.rotation.z=Math.sin(t*.7)*.012;a.head.rotation.y=-a.rig.rotation.y*.35;const breath=1+Math.sin(t*1.8)*.004;a.rig.scale.y*=breath;a.contact.scale.setScalar(rolling?.65:1);
   a.root.visible=!dead||(s.death||0)>0;
   if(dead){a.rig.rotation.z=Math.min(1,(1.4-s.death)*2)*1.48;a.rig.rotation.x=.15;}
+  animateAvatar(a,s,dt);
   a.health.visible=a.type!=='player'&&s.hp>0&&s.hp<s.maxHp;a.health.quaternion.copy(camera.quaternion);a.fill.scale.x=Math.max(.001,s.hp/s.maxHp||1);a.fill.position.x=-(1-a.fill.scale.x)*.31;
  }
  function minimap(run){const mw=106,mh=79,x=w-mw-17,y=h-mh-80;if(w<600)return;hud.fillStyle='#0a1829bb';hud.fillRect(x,y,mw,mh);hud.strokeStyle='#97b1b244';hud.strokeRect(x,y,mw,mh);hud.save();hud.translate(x,y);hud.scale(mw/2500,mh/1850);hud.fillStyle='#96ada27a';for(const p of LAND){hud.beginPath();p.forEach(([x,z],i)=>i?hud.lineTo(x,z):hud.moveTo(x,z));hud.closePath();hud.fill();}hud.fillStyle='#f4cc8a';hud.beginPath();hud.arc(run.player.x,run.player.y,50,0,7);hud.fill();hud.restore();}

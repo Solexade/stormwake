@@ -1,5 +1,5 @@
 import {MOTION,locomotion} from './motion.js';
-import {walkable} from './world.js';
+import {walkable,moveBody} from './world.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export class MovementPreview {
  constructor(){this.reset();}
@@ -43,7 +43,10 @@ export class MovementPreview {
   let mx=p.vx*dt+cx,my=p.vy*dt+cy;
   if(authority.action==='roll'){mx=(authority.vx||0)*dt;my=(authority.vy||0)*dt;}
   // Substeps prevent prediction passing through a narrow obstacle during corrections.
-  const steps=Math.max(1,Math.ceil(Math.hypot(mx,my)/5));for(let n=0;n<steps;n++){if(walkable(p.x+mx/steps,p.y,16))p.x+=mx/steps;else p.vx=0;if(walkable(p.x,p.y+my/steps,16))p.y+=my/steps;else p.vy=0;}
+  const oldX=p.x,oldY=p.y;moveBody(p,mx,my);
+  // Animate actual displacement, so pushing against a wall cannot look like running.
+  if(Math.abs(p.x-oldX)<.001)p.vx=0;if(Math.abs(p.y-oldY)<.001)p.vy=0;
+
   if(Number.isFinite(input.angle)){const delta=Math.atan2(Math.sin(input.angle-p.angle),Math.cos(input.angle-p.angle));p.angle+=clamp(delta,-dt*MOTION.turn,dt*MOTION.turn);}
   if(Math.hypot(p.vx,p.vy)>10)p.moveAngle=Math.atan2(p.vy,p.vx);
   return {...p,preview:true};
