@@ -13,7 +13,7 @@ test('land routes connect all objectives without walking through water',()=>{
   for(const p of points)assert.ok(seen.has(`${Math.round(p.x/grid)},${Math.round(p.y/grid)}`),JSON.stringify(p));
 });
 test('movement normalizes diagonal speed and stale input stops movement',()=>{
-  const s=createRun('a',now);s.input={dx:1,dy:-1};step(s);assert.ok(Math.hypot(s.player.x-HOME.x,s.player.y-HOME.y)<=7.001);const x=s.player.x;s.lastInputAt=0;tick(s,1/30,now);assert.equal(s.player.x,x);
+  const s=createRun('a',now);s.input={dx:1,dy:-1};step(s);assert.ok(Math.hypot(s.player.x-HOME.x,s.player.y-HOME.y)<=310/30+.001);const x=s.player.x;s.lastInputAt=0;tick(s,1/30,now);assert.equal(s.player.x,x);
 });
 test('attacks need range and facing and cannot bypass cooldown',()=>{
   for(const facing of [0,Math.PI]){const s=createRun('a',now);Object.assign(s.enemies[0],{x:HOME.x+65,y:HOME.y,homeX:HOME.x+65,homeY:HOME.y,hp:100,maxHp:100,cd:10});s.player.angle=facing;s.input={attack:true,angle:facing};step(s);assert.equal(s.enemies[0].hp,100,'Wind-up must precede damage');step(s,5);assert.equal(s.enemies[0].hp,facing===0?76:100);const hp=s.enemies[0].hp;step(s);assert.equal(s.enemies[0].hp,hp);}

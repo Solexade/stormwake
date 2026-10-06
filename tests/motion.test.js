@@ -45,3 +45,15 @@ test('stationary stale authority cannot brake fresh movement or pull a reversal 
  for(let i=25;i<=31;i++)preview.step({dx:-1,angle:Math.PI},1/60,i*1000/60);
  assert.ok(preview.player.x<before-15,'reversal responds locally before server acknowledgement');
 });
+
+import {moveBody,walkable,STRUCTURES} from '../public/world.js';
+test('large steps cannot tunnel through cottage walls, and diagonal input slides along them',()=>{
+ const o=STRUCTURES[0],c=Math.cos(o.angle),s=Math.sin(o.angle);
+ const world=(x,y)=>({x:o.x+c*x+s*y,y:o.y-s*x+c*y});
+ const p=world(-o.w/2-25,0);
+ assert.ok(walkable(p.x,p.y));
+ moveBody(p,c*300,-s*300);
+ assert.ok(walkable(p.x,p.y));
+ assert.ok(c*(p.x-o.x)-s*(p.y-o.y)<-o.w/2,'must stop before the wall, not emerge on the far side');
+ const q={...p};moveBody(q,30,60);assert.ok(walkable(q.x,q.y));assert.ok(Math.hypot(q.x-p.x,q.y-p.y)>0,'wall contact permits tangential movement');
+});
