@@ -28,7 +28,8 @@ export class MovementPreview {
   return pose;
  }
  advance(input,dt,now){if(!this.player||!this.source)return null;const p=this.player,s=this.source,authority=s.player;dt=clamp(dt,0,.05);
-  if(s.status!=='active'||s.paused||s.inSafehouse||now-this.received>700){Object.assign(p,authority,{vx:0,vy:0});return {...p};}
+  if(s.status!=='active'||s.paused||s.inSafehouse){Object.assign(p,authority,{vx:0,vy:0});return {...p};}
+  if(now-this.received>700){if(Math.hypot(input.dx||0,input.dy||0)>.05)Object.assign(p,authority);p.vx=p.vy=0;return {...p,preview:true};}
   // Only the local display is predicted. Damage, stamina, rewards and collisions remain authoritative.
   let dx=input.dx||0,dy=input.dy||0;const mag=Math.hypot(dx,dy);if(mag>1){dx/=mag;dy/=mag;}
   const combat=authority.action!=='idle';p.sprinting=!!input.sprint&&mag>.1&&!input.guard&&!combat&&authority.stamina>5;
@@ -36,8 +37,10 @@ export class MovementPreview {
   Object.assign(p,locomotion(p.vx,p.vy,dx,dy,speed,dt));
   // Reconcile only new snapshots, with a bounded adjustment. Never chase a
   // continuously extrapolated stale position through a direction change.
+  // While resting, defer ordinary position corrections until movement resumes.
+  // Otherwise delayed replies visibly drag a stopped character across the ground.
   const remaining=Math.hypot(this.correction.x,this.correction.y);
-  const fraction=remaining?Math.min(1,40*dt/remaining):0;
+  const fraction=remaining&&(mag>.05||combat)?Math.min(1,40*dt/remaining):0;
   const cx=this.correction.x*fraction,cy=this.correction.y*fraction;
   this.correction.x-=cx;this.correction.y-=cy;
   let mx=p.vx*dt+cx,my=p.vy*dt+cy;
