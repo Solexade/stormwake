@@ -57,3 +57,25 @@ test('large steps cannot tunnel through cottage walls, and diagonal input slides
  assert.ok(c*(p.x-o.x)-s*(p.y-o.y)<-o.w/2,'must stop before the wall, not emerge on the far side');
  const q={...p};moveBody(q,30,60);assert.ok(walkable(q.x,q.y));assert.ok(Math.hypot(q.x-p.x,q.y-p.y)>0,'wall contact permits tangential movement');
 });
+
+
+test('released joystick stays planted through delayed idle replies and brief connection loss',()=>{
+ const preview=previewAt(60);
+ const snapshot={...preview.source,player:{...preview.source.player,x:preview.player.x-35,vx:0,vy:0}};
+ preview.sync(snapshot,500,400);
+ // Allow the existing braking curve to finish; it is deliberately unchanged.
+ for(let i=1;i<=12;i++)preview.step({},1/60,500+i*1000/60);
+ const stopped={x:preview.player.x,y:preview.player.y};
+ for(let i=1;i<=120;i++){
+  const now=700+i*1000/60;
+  if(i%20===0)preview.sync(snapshot,now,now-350);
+  const p=preview.step({},1/60,now);
+  assert.equal(p.x,stopped.x);assert.equal(p.y,stopped.y);
+ }
+ const p=preview.step({},1/60,4000);
+ assert.equal(p.x,stopped.x);assert.equal(p.y,stopped.y);
+ // Corrections remain available on the next deliberate movement.
+ preview.sync(snapshot,4100,4000);
+ const moved=preview.step({dx:-1},1/60,4117);
+ assert.ok(moved.x<stopped.x);
+});
