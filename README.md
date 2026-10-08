@@ -129,3 +129,12 @@ Local photographic ground, rock and timber maps use normal and roughness detail 
 - Quaternius CC0 knight and helmet replace primitive character bodies, with blended idle/walk/run/roll/attack clips. This is stylized art, not photorealism. Existing models remain a load-failure fallback.
 - Shared swept movement prevents large rolls/lunges crossing cottage walls, with tangential sliding at rotated walls and foundation-sized collision boxes.
 - Faster acceleration, braking and reversal, retaining authoritative collision and rewards.
+
+
+### October 8: combat presentation
+
+- Separate light and heavy attack clips with alternating animation actions for combo blending; guard, wind-up, stagger and death presentation. Combat timing and movement constants are unchanged.
+- Enemy warning countdowns, including an archer aim line, plus hit sparks independent of the blood toggle.
+- Improved armour reflections, restored bone-attached capes and archer bows on the existing CC0 knight. These remain stylized assets, not photorealistic replacements.
+- Single-pass highlight bloom and subtle cool-shadow/warm-highlight grading; low graphics mode bypasses the pass.
+- Free asset route: Quaternius CC0 animation/character packs and Poly Haven CC0 materials/HDRIs. Higher-detail hero art still requires modelling, rigging, retargeting, and mobile optimization; effects alone cannot deliver AAA character quality.
