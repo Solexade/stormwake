@@ -1,13 +1,13 @@
 import {combatPose} from './combat-presentation.js';
 const aColor=(type,color)=>type==='player'?color:new THREE.Color(type==='boss'?'#9f717e':type==='archer'?'#789e89':'#ba8980').multiply(color);
 import * as THREE from './vendor/three.module.js';
-import {GLTFLoader} from './vendor/GLTFLoader.js';
-import {clone} from './vendor/SkeletonUtils.js';
-let asset;
-const ready=new GLTFLoader().loadAsync('/assets/knight.glb').then(g=>{asset=g;return g;});
+import {loadGLB} from './scene/assets.js';
 export function dressWarrior(actor,canvas){
- ready.then(g=>{
-  const model=clone(g.scene),bounds=new THREE.Box3().setFromObject(g.scene),size=bounds.getSize(new THREE.Vector3()),scale=1.95/size.y;
+ loadGLB('knight.glb').then(g=>{
+  // Validate before touching the visible fallback or moving its attachments.
+  for(const bone of ['Torso','PalmR','PalmL'])if(!g.scene.getObjectByName(bone))throw Error('Missing character socket: '+bone);
+  if(!g.animations.some(clip=>clip.name.split('|').pop()==='Idle'))throw Error('Missing fallback idle clip');
+  const model=g.scene,bounds=new THREE.Box3().setFromObject(g.scene),size=bounds.getSize(new THREE.Vector3()),scale=1.95/size.y;
   const mount=new THREE.Group();mount.scale.setScalar(scale*actor.scale);mount.rotation.y=Math.PI;mount.add(model);model.position.y-=bounds.min.y;
   model.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;n.frustumCulled=false;const convert=m=>new THREE.MeshStandardMaterial({color:aColor(actor.type,m.color),vertexColors:true,roughness:actor.type==='player'?.43:.61,metalness:.48});n.material=Array.isArray(n.material)?n.material.map(convert):convert(n.material);}});
   actor.root.add(mount);actor.root.updateMatrixWorld(true);

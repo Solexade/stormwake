@@ -165,6 +165,8 @@ const server=http.createServer(async(req,res)=>{
     files['/vendor/BufferGeometryUtils.js']='vendor/BufferGeometryUtils.js';files['/adventure.js']='adventure.js';files['/movement-preview.js']='movement-preview.js';
     files['/motion.js']='motion.js';files['/realism.js']='realism.js';files['/vendor/HDRLoader.js']='vendor/HDRLoader.js';
     for(const file of ['cinematic.js','combat-presentation.js','audio.js','characters.js','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
+    for(const name of ['actors','environment','lighting','harbour','quality','palette','assets','asset-cache'])files['/scene/'+name+'.js']='scene/'+name+'.js';
+    files['/asset-manifest.js']='asset-manifest.js';
     if(/^\/assets\/[a-z0-9_]+\.(jpg|hdr|glb)$/.test(url.pathname))files[url.pathname]=url.pathname.slice(1);
     const file=files[url.pathname];if(!file){res.writeHead(404);return res.end('Not found');}
     const bytes=await readFile(path.join(ROOT,'public',file));const types={'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.jpg':'image/jpeg','.hdr':'application/octet-stream','.glb':'model/gltf-binary'};

@@ -26,6 +26,10 @@ test('HTTP sessions, score tampering, origin checks, and persistence',async t=>{
   response=await post('leave',{});assert.equal(response.status,200);
   response=await fetch(base+'/api/state',{headers:{Cookie:cookie}});state=await response.json();assert.equal(state.player.name,'Test Voyager');assert.equal(state.player.best,0);assert.equal(state.player.salvage,0);assert.equal(state.run.status,'abandoned');
   response=await fetch(base+'/server.js');assert.equal(response.status,404);
+  for(const file of ['asset-manifest.js','scene/environment.js','scene/actors.js','scene/lighting.js','scene/palette.js','scene/harbour.js','scene/quality.js','scene/assets.js','scene/asset-cache.js']){
+    const asset=await fetch(base+'/'+file);assert.equal(asset.status,200,file);assert.match(asset.headers.get('content-type'),/javascript/);
+  }
+  assert.equal((await fetch(base+'/scene/not-public.js')).status,404);
   response=await post('shop/buy',{item:'axe',cost:0});assert.equal(response.status,400);
   response=await post('weapon/equip',{weapon:'spear'});assert.equal(response.status,200);assert.equal((await response.json()).player.gear.weapon,'spear');
   response=await post('weapon/equip',{weapon:'admin'});assert.equal(response.status,400);

@@ -12,7 +12,7 @@ Server-side Ethereum signature verification uses viem (MIT), installed from npm 
 - Vendored files: `three.module.js` (the minified module build) `three.core.min.js`, and `BufferGeometryUtils.js` and `HDRLoader.js` (local module imports adjusted).
 - The package is pinned as a development dependency for reproducibility. Production serves the vendored files locally and does not depend on npm or a CDN at runtime.
 
-Scene geometry, game characters, needle cutouts and synthesized audio are created in the project code. No third-party character model is shipped.
+Fallback character geometry, environment geometry, harbour weathering/shore effects, needle cutouts and synthesized audio are original project code. The shipped third-party animated knight is credited below. All existing asset files are unchanged; public/asset-manifest.js records hashes and provenance. Historical acquisition/export details that were not recorded are explicitly marked unknown.
 
 
 ## Poly Haven photographic materials (CC0)
