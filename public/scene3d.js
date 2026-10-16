@@ -21,7 +21,7 @@ export function createWorld(canvas){
  const scene=new THREE.Scene();scene.background=new THREE.Color(PALETTE.fog);scene.fog=new THREE.FogExp2(PALETTE.fog,PALETTE.fogDensity);
  const camera=new THREE.PerspectiveCamera(48,1,.08,190);const look=new THREE.Vector3(HOME.x*S,1,HOME.y*S);let first=true,mode='follow',quality='high';
  const {sun,sky,skyMaterial,environment}=createLighting(renderer,scene);
- const {mats,box,ball,cylinder,beam,mesh,form,batchStatic,boat,chest,crystal,shrineLight,beaconFlame,beaconLight,flames,waterMaterial,foliage,pennants,motes,buildings,grass,contactMaterial,materials}=createEnvironment(renderer,scene,canvas,sky);
+ const {harbourAssets,mats,box,ball,cylinder,beam,mesh,form,batchStatic,boat,chest,crystal,shrineLight,beaconFlame,beaconLight,flames,waterMaterial,foliage,pennants,motes,buildings,grass,contactMaterial,materials}=createEnvironment(renderer,scene,canvas,sky);
  const shore=createHarbourShore(scene),meter=createFrameMeter();
  materials.ready.then(()=>{if(scene.environment!==environment.texture)environment.dispose();});
  const warrior=createActorFactory({scene,mats,box,ball,cylinder,beam,mesh,form,batchStatic,contactMaterial,canvas});
@@ -30,7 +30,7 @@ export function createWorld(canvas){
  const merchants=[{place:FORGE,title:'ASTRID · FORGE',actor:warrior('player')},{place:SUPPLIES,title:'EDDA · SUPPLIES',actor:warrior('player')}];
  for(const npc of merchants){npc.actor.weapon.visible=false;npc.actor.shield.visible=false;}
  const anvilGroup=new THREE.Group();anvilGroup.position.set((FORGE.x+33)*S,0,FORGE.y*S);scene.add(anvilGroup);cylinder(mats.darkwood,0,.30,0,.28,.35,.6,anvilGroup);box(mats.metal,0,.68,0,.82,.19,.38,anvilGroup);box(mats.metal,0,.51,0,.30,.2,.24,anvilGroup);const horn=mesh(new THREE.ConeGeometry(.13,.36,8),mats.steel,.55,.7,0,anvilGroup);horn.rotation.z=-Math.PI/2;
- box(mats.wood,(SUPPLIES.x+33)*S,.37,SUPPLIES.y*S,.7,.74,.7);for(let i=0;i<3;i++)cylinder(mats.glow,(SUPPLIES.x+23+i*10)*S,.89,SUPPLIES.y*S,.04,.065,.28);
+ const supplyFallback=box(mats.wood,(SUPPLIES.x+33)*S,.37,SUPPLIES.y*S,.7,.74,.7);harbourAssets.add('wooden_barrels_01.glb',supplyFallback,{x:(SUPPLIES.x+33)*S,z:SUPPLIES.y*S,height:.74});for(let i=0;i<3;i++)cylinder(mats.glow,(SUPPLIES.x+23+i*10)*S,.89,SUPPLIES.y*S,.04,.065,.28);
  // Skaal has flapping wings and follows the shoulder rather than a flat icon.
  const raven=new THREE.Group();scene.add(raven);ball(mats.darkstone,0,0,0,.12,.09,.24,raven);ball(mats.darkstone,0,.08,-.19,.08,.085,.10,raven);const beak=mesh(new THREE.ConeGeometry(.035,.15,6),mats.gold,0,.06,-.32,raven);beak.rotation.x=-Math.PI/2;
  const wings=[];for(const side of [-1,1]){const pivot=new THREE.Group();raven.add(pivot);const wing=box(mats.darkstone,side*.27,0,.02,.5,.025,.22,pivot);wing.rotation.y=side*.25;wings.push(pivot);}
@@ -109,5 +109,5 @@ export function createWorld(canvas){
     const measured=meter.read();canvas.dataset.frameP95Ms=measured.frame.p95Ms.toFixed(2);canvas.dataset.cpuP95Ms=measured.cpu.p95Ms.toFixed(2);canvas.dataset.frameSamples=String(measured.frame.samples);canvas.dataset.metricsAt=String(performance.now());canvas.dataset.graphicsQuality=quality;
   }
  }
- return {draw,aimAt,setOrbit(value){orbit=value;},setMode(value){mode=value;},setQuality(value){quality=value==='low'?'low':'high';const preset=qualityPreset(quality);renderer.setPixelRatio(Math.min(devicePixelRatio,preset.pixelRatio));renderer.shadowMap.enabled=preset.shadows;grass.visible=preset.foliage;meter.reset();resize();},getInfo(){return {engine:'Three.js',revision:THREE.REVISION,quality,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,...meter.read()};}};
+ return {draw,aimAt,setOrbit(value){orbit=value;},setMode(value){mode=value;},setQuality(value){quality=value==='low'?'low':'high';harbourAssets.setQuality(quality);const preset=qualityPreset(quality);renderer.setPixelRatio(Math.min(devicePixelRatio,preset.pixelRatio));renderer.shadowMap.enabled=preset.shadows;grass.visible=preset.foliage;meter.reset();resize();},getInfo(){return {engine:'Three.js',revision:THREE.REVISION,quality,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,...meter.read()};}};
 }

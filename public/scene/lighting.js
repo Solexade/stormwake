@@ -2,8 +2,8 @@ import * as THREE from '../vendor/three.module.js';
 import {PALETTE} from './palette.js';
 export function createLighting(renderer,scene){
  const hemi=new THREE.HemisphereLight(PALETTE.skyLight,PALETTE.groundLight,PALETTE.ambient);scene.add(hemi);
- const sun=new THREE.DirectionalLight('#f5cf9a',2.3);sun.position.set(10,23,13);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-19;sun.shadow.camera.right=19;sun.shadow.camera.top=19;sun.shadow.camera.bottom=-19;sun.shadow.camera.far=70;sun.shadow.radius=3;sun.shadow.normalBias=.018;sun.shadow.bias=-.0003;scene.add(sun,sun.target);
- const rim=new THREE.DirectionalLight('#abcde8',.75);rim.position.set(-30,15,-35);scene.add(rim);
+ const sun=new THREE.DirectionalLight(PALETTE.sun,PALETTE.sunIntensity);sun.position.set(10,23,13);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-19;sun.shadow.camera.right=19;sun.shadow.camera.top=19;sun.shadow.camera.bottom=-19;sun.shadow.camera.far=70;sun.shadow.radius=3;sun.shadow.normalBias=.018;sun.shadow.bias=-.0003;scene.add(sun,sun.target);
+ const rim=new THREE.DirectionalLight(PALETTE.rim,PALETTE.rimIntensity);rim.position.set(-30,15,-35);scene.add(rim);
  // A softly lit studio sky supplies reflections for steel and worn brass.
  const environmentScene=new THREE.Scene();environmentScene.background=new THREE.Color('#b7c6cd');
  const panel=new THREE.Mesh(new THREE.PlaneGeometry(20,12),new THREE.MeshBasicMaterial({color:'#fff0cf',side:THREE.DoubleSide}));panel.position.set(0,7,-10);environmentScene.add(panel);

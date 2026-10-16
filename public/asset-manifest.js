@@ -1,5 +1,29 @@
 // Local assets only. Checksums are checked by the build, not fetched at runtime.
 export const ASSETS = Object.freeze({
+  "wooden_barrels_01.glb": {
+  "url": "/assets/wooden_barrels_01.glb",
+  "pbr": true,
+  "type": "glb",
+  "bytes": 2408392,
+  "sha256": "a09df3609b59f4806700855dcb0272f5973323345d7a244e409023cd36d108a1",
+  "license": "CC0-1.0",
+  "creator": "James Ray Cock",
+  "source": "https://polyhaven.com/a/wooden_barrels_01",
+  "provenance": "Downloaded 2026-10-16; every source file verified against Poly Haven API MD5",
+  "conversion": "First mesh only; original vertices and 1K JPEG textures; packed self-contained GLB; ARM red channel used for AO; removed unused assets and source layout translation"
+},
+  "boulder_01.glb": {
+  "url": "/assets/boulder_01.glb",
+  "pbr": true,
+  "type": "glb",
+  "bytes": 5771068,
+  "sha256": "c85156cf75fc756c41ab49ad1407bf28ddf945cc57a9188217c508281a09446e",
+  "license": "CC0-1.0",
+  "creator": "Rico Cilliers",
+  "source": "https://polyhaven.com/a/boulder_01",
+  "provenance": "Downloaded 2026-10-16; every source file verified against Poly Haven API MD5",
+  "conversion": "First mesh only; original vertices and 1K JPEG textures; packed self-contained GLB; ARM red channel used for AO; removed unused assets and source layout translation"
+},
   "aerial_rocks_02_diff_1k.jpg": {
     "url": "/assets/aerial_rocks_02_diff_1k.jpg",
     "type": "jpg",

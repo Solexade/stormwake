@@ -52,7 +52,7 @@ npm run test:playthrough
 `npm start` defaults to localhost:5180; `Start Game.cmd` uses 5190. `PORT`, `HOST` and `DATA_DIR` configure the local server. Use an isolated DATA_DIR for manual testing. Unit/HTTP tests create disposable databases; HTTP test uses 5194 and playthrough uses 5195. Do not start duplicate servers on those ports.
 
 - `npm test`: Node test runner covering simulation, movement/prediction, presentation mappings, audio, SQLite HTTP sessions, wallet signatures and cloud service behavior. Cloud tests use **pg-mem**, not a real PostgreSQL instance or the complete Vercel handler.
-- `npm run build`: currently checks selected files exist. It does not compile, validate all imports/assets, run graphics or exercise PostgreSQL.
+- `npm run build`: checks required modules, resolves browser imports and verifies asset sizes/hashes. It does not render graphics or exercise PostgreSQL.
 - Changes to combat, persistence or identity need appropriate regression tests and the isolated playthrough; cloud transaction changes additionally need disposable real PostgreSQL integration tests.
 - Rendering/input changes need desktop and real touch-device checks: move/reverse/release, delayed replies, wall contact, multitouch attacks, chest interaction, combo, pause/resume, save/restore and optional wallet. Test portrait/landscape and High/Performance modes. Record device, resolution, FPS/frame time, network latency and asset loading errors. Do not weaken existing motion assertions to accommodate visual changes.
 

@@ -2,14 +2,25 @@ import {combatPose} from './combat-presentation.js';
 const aColor=(type,color)=>type==='player'?color:new THREE.Color(type==='boss'?'#9f717e':type==='archer'?'#789e89':'#ba8980').multiply(color);
 import * as THREE from './vendor/three.module.js';
 import {loadGLB} from './scene/assets.js';
+// Update cloned skin bind inverses before measuring: Box3 alone does not do this.
+export function characterMount(model, actorScale = 1) {
+ model.updateMatrixWorld(true);
+ model.traverse(n=>{if(n.isSkinnedMesh){n.skeleton.update();n.computeBoundingBox();}});
+ const bounds=new THREE.Box3().setFromObject(model,true),height=bounds.max.y-bounds.min.y;
+ if(!Number.isFinite(height)||height<=0)throw Error('Invalid character bounds');
+ const mount=new THREE.Group();mount.scale.setScalar(1.95/height*actorScale);
+ mount.rotation.y=Math.PI;mount.add(model);model.position.y-=bounds.min.y;
+ return mount;
+}
 export function dressWarrior(actor,canvas){
+ let mounted=null;
+ const attachments=[actor.cape,actor.weapon,actor.shield,actor.bow].filter(Boolean).map(object=>({object,parent:object.parent,position:object.position.clone(),quaternion:object.quaternion.clone(),scale:object.scale.clone()}));
  loadGLB('knight.glb').then(g=>{
   // Validate before touching the visible fallback or moving its attachments.
   for(const bone of ['Torso','PalmR','PalmL'])if(!g.scene.getObjectByName(bone))throw Error('Missing character socket: '+bone);
   if(!g.animations.some(clip=>clip.name.split('|').pop()==='Idle'))throw Error('Missing fallback idle clip');
-  const model=g.scene,bounds=new THREE.Box3().setFromObject(g.scene),size=bounds.getSize(new THREE.Vector3()),scale=1.95/size.y;
-  const mount=new THREE.Group();mount.scale.setScalar(scale*actor.scale);mount.rotation.y=Math.PI;mount.add(model);model.position.y-=bounds.min.y;
-  model.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;n.frustumCulled=false;const convert=m=>new THREE.MeshStandardMaterial({color:aColor(actor.type,m.color),vertexColors:true,roughness:actor.type==='player'?.43:.61,metalness:.48});n.material=Array.isArray(n.material)?n.material.map(convert):convert(n.material);}});
+  const model=g.scene,mount=characterMount(model,actor.scale);mounted=mount;
+  model.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;n.frustumCulled=false;const convert=m=>new THREE.MeshStandardMaterial({color:aColor(actor.type,m.color),vertexColors:true,roughness:.72,metalness:.12});n.material=Array.isArray(n.material)?n.material.map(convert):convert(n.material);}});
   actor.root.add(mount);actor.root.updateMatrixWorld(true);
   const torso=model.getObjectByName('Torso');if(torso)torso.attach(actor.cape);
   actor.rig.visible=false;
@@ -21,7 +32,11 @@ export function dressWarrior(actor,canvas){
   if(palm){const grip=new THREE.Group();model.updateMatrixWorld(true);const inherited=palm.getWorldScale(new THREE.Vector3()).x;grip.scale.setScalar(actor.scale/inherited);palm.add(grip);grip.add(actor.weapon);if(actor.bow){grip.add(actor.bow);actor.bow.position.set(0,0,0);actor.bow.rotation.set(0,0,-Math.PI/2);}actor.weapon.position.set(0,0,0);actor.weapon.rotation.set(0,0,Math.PI/2);}
   const left=model.getObjectByName('PalmL');if(left){model.updateMatrixWorld(true);const grip=new THREE.Group();grip.scale.setScalar(actor.scale/left.getWorldScale(new THREE.Vector3()).x);left.add(grip);grip.add(actor.shield);actor.shield.position.set(0,0,0);actor.shield.rotation.set(0,Math.PI/2,0);}
   canvas.dataset.characters='rigged';
- }).catch(()=>{canvas.dataset.characters='fallback';});
+ }).catch(error=>{
+  mounted?.removeFromParent();actor.avatar=null;actor.rig.visible=true;
+  for(const a of attachments){a.parent.add(a.object);a.object.position.copy(a.position);a.object.quaternion.copy(a.quaternion);a.object.scale.copy(a.scale);}
+  canvas.dataset.characters='fallback';console.warn('Character fallback:',error.message);
+ });
 }
 export function animateAvatar(a,s,dt){
  const v=a.avatar;if(!v)return;

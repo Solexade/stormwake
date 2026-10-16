@@ -56,3 +56,7 @@ Review checked extracted functions against their source, kept seeded random call
 ## Rollback and next review
 
 Revert this graphics PR or restore the previous deployment; no database rollback is needed. Future work should begin with a licensed high-quality cottage/hero asset and real-device profiling, not more post-processing. Keep gameplay changes, bot repair and production hardening separate.
+
+## Follow-up recovery
+
+The later character-scale correction, real CC0 model imports, updated lighting and current limitations supersede this initial pass where they differ. See [PHOTOREALISM_RECOVERY.md](PHOTOREALISM_RECOVERY.md) for actual installed assets and verification.

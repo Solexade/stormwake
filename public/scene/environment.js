@@ -5,9 +5,11 @@ import {SAFEHOUSE,FORGE,SUPPLIES} from '../catalog.js';
 const S=1/40,UP=new THREE.Vector3(0,1,0);
 const randomFactory=seed=>()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
 import {applyPhotographicMaterials,needleMaterial} from '../realism.js';
-import {dressCottage,weatherHarbourMaterial} from './harbour.js';
+import {dressCottage,weatherHarbourMaterial,createHarbourAssets} from './harbour.js';
 import {mergeGeometries} from '../vendor/BufferGeometryUtils.js';
+import {loadGLB} from './assets.js';
 export function createEnvironment(renderer,scene,canvas,sky){
+ const harbourAssets=createHarbourAssets(scene,canvas,loadGLB),replacementFallbacks=[];
  const random=randomFactory(24681);let count=0;
  function texture(kind){const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d'),data=g.createImageData(256,256),r=randomFactory(kind==='grass'?18:kind==='wood'?73:91);const base=kind==='grass'?[67,79,56]:kind==='wood'?[87,65,44]:kind==='leather'?[89,62,42]:[114,116,110];
    for(let y=0;y<256;y++)for(let x=0;x<256;x++){const i=(y*256+x)*4;let n=(r()-.5)*38;if(kind==='wood')n+=Math.sin(x*.8+Math.sin(y*.02)*2)*11;if(kind==='leather')n+=Math.sin(x*2)*Math.cos(y*2)*5;for(let k=0;k<3;k++)data.data[i+k]=base[k]+n;data.data[i+3]=255;}g.putImageData(data,0,0);
@@ -97,7 +99,10 @@ export function createEnvironment(renderer,scene,canvas,sky){
   }}batchStatic(crown);foliage.push({mesh:crown,x:crown.position.x,z:crown.position.z,phase:random()*6,strength:.005});
  }
 
- OBSTACLES.forEach(o=>rock(o.x*S,o.y*S,o.r*S));
+ OBSTACLES.forEach(o=>{
+  const fallback=rock(o.x*S,o.y*S,o.r*S);
+  if(o.x===700&&o.y===1520){replacementFallbacks.push(fallback);harbourAssets.add('boulder_01.glb',fallback,{x:o.x*S,z:o.y*S,radius:o.r*S});}
+ });
  // Coastal boulders and distant mountain silhouettes.
  for(const p of LAND)for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length],d=Math.hypot(b[0]-a[0],b[1]-a[1]);for(let j=0;j<d;j+=45){const f=j/d;const x=(a[0]+(b[0]-a[0])*f)*S,z=(a[1]+(b[1]-a[1])*f)*S;rock(x,z,.25+random()*.45,mats.darkstone);}}
  const mountains=new THREE.MeshStandardMaterial({color:'#5b777b',roughness:1});for(let i=0;i<14;i++){const m=mesh(new THREE.DodecahedronGeometry(6+random()*5,0),mountains,-35+i*10,-1,-34-random()*12);m.rotation.y=random()*6;}
@@ -124,8 +129,8 @@ export function createEnvironment(renderer,scene,canvas,sky){
  for(const [x,z] of [[470,1280],[715,1460]]){cylinder(mats.darkwood,x*S,1.8,z*S,.04,.06,3.6);const geo=new THREE.PlaneGeometry(.85,1.25,8,10),flag=mesh(geo,mats.cloth,x*S+.45,2.72,z*S);pennants.push(flag);}
  const mistGeo=new THREE.BufferGeometry(),mistPositions=new Float32Array(72*3);for(let i=0;i<72;i++){mistPositions[i*3]=(random()-.5)*28;mistPositions[i*3+1]=.4+random()*4;mistPositions[i*3+2]=(random()-.5)*24;}
  mistGeo.setAttribute('position',new THREE.BufferAttribute(mistPositions,3));const motes=new THREE.Points(mistGeo,new THREE.PointsMaterial({color:'#e8dec7',size:.035,transparent:true,opacity:.35,depthWrite:false}));scene.add(motes);
- batchStatic(scene,new Set([boat,chest,crystal,beaconFlame,water,sky,...buildings.map(b=>b.group),...flames,...pennants,...foliage.map(f=>f.mesh)]),true);
+ batchStatic(scene,new Set([...replacementFallbacks,boat,chest,crystal,beaconFlame,water,sky,...buildings.map(b=>b.group),...flames,...pennants,...foliage.map(f=>f.mesh)]),true);
  const warmPool=new THREE.PointLight('#ffb46c',4.5,7,2);warmPool.position.set(470*S,1.7,1280*S);scene.add(warmPool);
  const contactCanvas=document.createElement('canvas');contactCanvas.width=contactCanvas.height=64;const contactCtx=contactCanvas.getContext('2d'),contactGradient=contactCtx.createRadialGradient(32,32,2,32,32,32);contactGradient.addColorStop(0,'rgba(0,0,0,.45)');contactGradient.addColorStop(1,'rgba(0,0,0,0)');contactCtx.fillStyle=contactGradient;contactCtx.fillRect(0,0,64,64);const contactMaterial=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(contactCanvas),transparent:true,depthWrite:false,opacity:.65});
- return {mats,box,ball,cylinder,beam,mesh,form,batchStatic,boat,chest,crystal,shrineLight,beaconFlame,beaconLight,flames,waterMaterial,foliage,pennants,motes,buildings,grass,contactMaterial,materials};
+ return {harbourAssets,mats,box,ball,cylinder,beam,mesh,form,batchStatic,boat,chest,crystal,shrineLight,beaconFlame,beaconLight,flames,waterMaterial,foliage,pennants,motes,buildings,grass,contactMaterial,materials};
 }

@@ -30,6 +30,10 @@ test('HTTP sessions, score tampering, origin checks, and persistence',async t=>{
     const asset=await fetch(base+'/'+file);assert.equal(asset.status,200,file);assert.match(asset.headers.get('content-type'),/javascript/);
   }
   assert.equal((await fetch(base+'/scene/not-public.js')).status,404);
+  const page=await fetch(base+'/');const csp=page.headers.get('content-security-policy');
+  assert.match(csp,/connect-src 'self' blob:/);assert.match(csp,/img-src 'self' data: blob:/);assert.match(csp,/script-src 'self';/);
+  for(const name of ['boulder_01','wooden_barrels_01']){const model=await fetch(base+'/assets/'+name+'.glb',{method:'HEAD'});assert.equal(model.status,200);}
+
   response=await post('shop/buy',{item:'axe',cost:0});assert.equal(response.status,400);
   response=await post('weapon/equip',{weapon:'spear'});assert.equal(response.status,200);assert.equal((await response.json()).player.gear.weapon,'spear');
   response=await post('weapon/equip',{weapon:'admin'});assert.equal(response.status,400);

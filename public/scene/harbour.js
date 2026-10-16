@@ -84,3 +84,27 @@ export function dressCottage(group,{box,mats}) {
   for(const x of [-1.29,1.29]) box(mats.darkwood,x,1.02,-1.08,.13,1.85,.1,group);
   box(mats.darkwood,0,.22,1.13,.72,.09,.12,group);
 }
+
+// Real locally hosted assets. Keep the old visual until the replacement is ready.
+// Radius fitting is conservative: imported geometry never enlarges a collider.
+export function fitHarbourAsset(model, {x,z,radius,height}) {
+ model.updateMatrixWorld(true);
+ const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3());
+ if(!Number.isFinite(size.y)||size.y<=0)throw Error('Invalid prop bounds');
+ const scale=radius?radius/Math.hypot(size.x/2,size.z/2):height/size.y;
+ const group=new THREE.Group();group.add(model);model.position.sub(bounds.getCenter(new THREE.Vector3()));model.position.y=-bounds.min.y;
+ group.scale.setScalar(scale);group.position.set(x,0,z);
+ model.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;}});
+ return group;
+}
+export function createHarbourAssets(scene,canvas,load) {
+ const entries=[];let high=true;
+ const sync=()=>{for(const e of entries){e.fallback.visible=!high||!e.model;if(e.model)e.model.visible=high;}canvas.dataset.harbourAssets=String(entries.filter(e=>e.model).length);};
+ return {
+  add(id,fallback,placement){
+   const entry={fallback,model:null};entries.push(entry);
+   return load(id).then(g=>{entry.model=fitHarbourAsset(g.scene,placement);scene.add(entry.model);sync();}).catch(error=>{console.warn('Harbour asset fallback:',id,error.message);sync();});
+  },
+  setQuality(value){high=value!=='low';sync();}
+ };
+}
