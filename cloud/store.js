@@ -1,3 +1,4 @@
+import {roomSchema} from '../arcade/service.js';
 import pg from 'pg';
 import {attachDatabasePool} from '@vercel/functions';
 export const schema=`
@@ -11,4 +12,4 @@ INSERT INTO stormwake_world(id,salvage) VALUES(1,0) ON CONFLICT(id) DO NOTHING;
 `;
 let pool,ready;
 export function database(){if(!pool){const connectionString=process.env.DATABASE_URL||process.env.POSTGRES_URL;if(!connectionString)throw Error('Cloud database is not configured');pool=new pg.Pool({connectionString,max:4,idleTimeoutMillis:5000,connectionTimeoutMillis:8000});attachDatabasePool(pool);}return pool;}
-export async function initialize(db=database()){if(!ready)ready=db.query(schema).catch(e=>{ready=null;throw e;});await ready;}
+export async function initialize(db=database()){if(!ready)ready=db.query(schema+roomSchema).catch(e=>{ready=null;throw e;});await ready;}

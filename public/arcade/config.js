@@ -1,0 +1,7 @@
+export const RULES=Object.freeze({hz:60,width:12,halfWidth:.34,speed:4.5,jump:7.8,gravity:22,hp:100,roundFrames:3600,countdown:120,between:150,staleFrames:24});
+export const MOVES=Object.freeze({
+ light:{startup:6,active:3,recovery:15,range:1.15,damage:8,stun:20,blockStun:9,push:.22,cooldown:0,level:'high'},
+ heavy:{startup:17,active:5,recovery:27,range:1.5,damage:17,stun:30,blockStun:15,push:.48,cooldown:12,level:'mid'},
+ special:{startup:23,active:7,recovery:32,range:2.4,damage:23,stun:36,blockStun:20,push:.70,cooldown:240,level:'mid'}
+});
+export const DIFFICULTY=Object.freeze({easy:{reaction:28,aggression:.40,guard:.22,special:.06},normal:{reaction:18,aggression:.65,guard:.45,special:.12},hard:{reaction:12,aggression:.80,guard:.65,special:.18}});

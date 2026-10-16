@@ -61,3 +61,16 @@ npm run test:playthrough
 Aim for a grounded, photorealistic Viking fantasy at the actual gameplay camera: believable anatomy, worn steel, rough timber, leather/fur, cold coastal daylight and warm hearths. Keep Stormwake's original story, islands, routes, UI identity and readable combat silhouettes. Photorealism is a staged art target, not the current state or a promise of console-AAA fidelity.
 
 Prioritize a coherent hero, contact timing, material response and legible warnings before increasing particles or post-processing. Preserve the current camera-relative control semantics. Use in-place rigs, bounded texture/mesh sizes, LODs and optional effects; mobile responsiveness outranks visual density. Bloom should enhance emissive accents, not wash out the HUD. Retain low-cost rendering and asset-load fallbacks. Proposed budgets and PR acceptance gates are in `docs/UPGRADE_PLAN.md`.
+
+## Arcade / Oathring milestone
+
+The user authorized a separate 2.5D fighting mode and private multiplayer rooms. Keep the Solo rules above unchanged; Arcade rules live in `public/arcade/` and do not import Solo combat/motion/world.
+- `config.js` owns frame data; `engine.js` advances exactly one 60 Hz step. Input is intent-only, sequence checked; server wall-clock drives simulation.
+- `arcade/service.js` owns room authorization, lifecycle and SQLite/Postgres adapters. `api/index.js` routes Arcade before Solo dispatch, so Arcade polling does not advance Solo runs. Preserve profile-row then room-row lock ordering; never lock the other participant's profile inside a room transaction.
+- Local room requests are serialized on the shared SQLite connection. Cloud requests use the existing transaction and `FOR UPDATE` room lock.
+- Additive `arcade_rooms` (SQLite) / `stormwake_arcade_rooms` (Postgres) hold match snapshots and outcomes. No Solo currency, rewards, wallet operations or profile merges occur in Arcade.
+- `arcade.html` is a separate entry with its own renderer/input loop. Homepage navigation explicitly pauses Solo before entering. Controls: A/D, W, S, J/K, L, U plus pointer-captured touch buttons.
+- Rooms require distinct guest sessions; two tabs sharing a cookie are the same player. 20-second disconnect grace, one-hour room expiry, five new matches per minute per profile. Existing-session rate limits also apply.
+- First to two round wins; 60 seconds per round; equal-health/double-KO rounds replay; three total drawn rounds end in a match draw. Do not silently change those rules.
+- No client-submitted outcome endpoint. Keep stored results authoritative and separate from any future progression economy.
+- Before production: test real PostgreSQL concurrency, mobile hardware and internet latency/cost. pg-mem tests do not establish those properties. Snapshot transport is not rollback netcode.

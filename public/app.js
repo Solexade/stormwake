@@ -141,3 +141,6 @@ function loadIdentity(data){run=null;setPlaying(false);applyState(data);run=data
 async function walletAction(action){if(walletBusy)return;walletBusy=true;document.querySelectorAll('#modal button').forEach(b=>b.disabled=true);try{await action();}catch(e){toast(walletError(e));}finally{walletBusy=false;$('closeModal').disabled=false;walletPanel();}}
 async function showWallet(){if(!profile||walletBusy)return;try{resetInput();if(playing&&run?.status==='active'){const data=await api('pause',{paused:true});acceptRun(data.run);}walletPanel();}catch(e){toast(e.message);}}
 $('modal').addEventListener('cancel',e=>{if(walletBusy)e.preventDefault();});
+
+// Explicit mode transition pauses an active Solo run; Arcade has its own page/input loop.
+$('arcadeLink').onclick=async event=>{event.preventDefault();try{await api('pause',{paused:true});location.assign('/arcade.html');}catch(e){toast('Could not pause Solo safely. '+e.message);}};
