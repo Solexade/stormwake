@@ -1,29 +1,29 @@
-// Local assets only. Checksums are checked by the build, not fetched at runtime.
+// Local assets only. Checksums verified by the build.
 export const ASSETS = Object.freeze({
   "wooden_barrels_01.glb": {
-  "url": "/assets/wooden_barrels_01.glb",
-  "pbr": true,
-  "type": "glb",
-  "bytes": 2408392,
-  "sha256": "a09df3609b59f4806700855dcb0272f5973323345d7a244e409023cd36d108a1",
-  "license": "CC0-1.0",
-  "creator": "James Ray Cock",
-  "source": "https://polyhaven.com/a/wooden_barrels_01",
-  "provenance": "Downloaded 2026-10-16; every source file verified against Poly Haven API MD5",
-  "conversion": "First mesh only; original vertices and 1K JPEG textures; packed self-contained GLB; ARM red channel used for AO; removed unused assets and source layout translation"
-},
+    "url": "/assets/wooden_barrels_01.glb",
+    "pbr": true,
+    "type": "glb",
+    "bytes": 2408392,
+    "sha256": "a09df3609b59f4806700855dcb0272f5973323345d7a244e409023cd36d108a1",
+    "license": "CC0-1.0",
+    "creator": "James Ray Cock",
+    "source": "https://polyhaven.com/a/wooden_barrels_01",
+    "provenance": "Downloaded 2026-10-16; every source file verified against Poly Haven API MD5",
+    "conversion": "First mesh only; original vertices and 1K JPEG textures; packed self-contained GLB; ARM red channel used for AO; removed unused assets and source layout translation"
+  },
   "boulder_01.glb": {
-  "url": "/assets/boulder_01.glb",
-  "pbr": true,
-  "type": "glb",
-  "bytes": 5771068,
-  "sha256": "c85156cf75fc756c41ab49ad1407bf28ddf945cc57a9188217c508281a09446e",
-  "license": "CC0-1.0",
-  "creator": "Rico Cilliers",
-  "source": "https://polyhaven.com/a/boulder_01",
-  "provenance": "Downloaded 2026-10-16; every source file verified against Poly Haven API MD5",
-  "conversion": "First mesh only; original vertices and 1K JPEG textures; packed self-contained GLB; ARM red channel used for AO; removed unused assets and source layout translation"
-},
+    "url": "/assets/boulder_01.glb",
+    "pbr": true,
+    "type": "glb",
+    "bytes": 5771068,
+    "sha256": "c85156cf75fc756c41ab49ad1407bf28ddf945cc57a9188217c508281a09446e",
+    "license": "CC0-1.0",
+    "creator": "Rico Cilliers",
+    "source": "https://polyhaven.com/a/boulder_01",
+    "provenance": "Downloaded 2026-10-16; every source file verified against Poly Haven API MD5",
+    "conversion": "First mesh only; original vertices and 1K JPEG textures; packed self-contained GLB; ARM red channel used for AO; removed unused assets and source layout translation"
+  },
   "aerial_rocks_02_diff_1k.jpg": {
     "url": "/assets/aerial_rocks_02_diff_1k.jpg",
     "type": "jpg",
@@ -144,5 +144,38 @@ export const ASSETS = Object.freeze({
     "source": "https://polyhaven.com/a/weathered_brown_planks",
     "provenance": "Existing repository asset at 78b7450; acquisition date not recorded; inventoried 2026-10-15",
     "conversion": "Existing 1K export; unchanged"
+  },
+  "azure_champion.glb": {
+    "url": "/assets/azure_champion.glb",
+    "type": "glb",
+    "bytes": 1907780,
+    "sha256": "966249f6e5f9ac19aa8c842d27a2315ba02968f773eddc40d76e4bed5c2e3195",
+    "license": "CC0-1.0",
+    "creator": "AutoSprite (AI-generated free library)",
+    "source": "https://www.autosprite.io/free-3d-models/azure-champion",
+    "provenance": "Downloaded 2026-10-16; license https://www.autosprite.io/free/license",
+    "conversion": "glTF Transform 4.2.1 simplify ratio .15 error .005: 22500 triangles; texture resized to 1024 JPEG quality 88; original rig and animation clips preserved; no Draco dependency"
+  },
+  "hooded_blade.glb": {
+    "url": "/assets/hooded_blade.glb",
+    "type": "glb",
+    "bytes": 1531908,
+    "sha256": "2af793feaf086c55921529c03265b8496cd90d62d55a6f54bdc3e1d81e8550c4",
+    "license": "CC0-1.0",
+    "creator": "AutoSprite (AI-generated free library)",
+    "source": "https://www.autosprite.io/free-3d-models/hooded-blade",
+    "provenance": "Downloaded 2026-10-16; license https://www.autosprite.io/free/license",
+    "conversion": "glTF Transform 4.2.1 simplify ratio .15 error .005: 22500 triangles; texture resized to 1024 JPEG quality 88; original rig and animation clips preserved; no Draco dependency"
+  },
+  "oathring_concept.png": {
+    "url": "/assets/oathring_concept.png",
+    "type": "png",
+    "bytes": 3414917,
+    "sha256": "e0de4593ed2ed87e450646799cb0e64f81d31f22c8b66447e6bf99473574aa2e",
+    "license": "Project-generated artwork",
+    "creator": "OpenAI image generation for Stormwake",
+    "source": "docs/ARCADE_ART_DIRECTION.md",
+    "provenance": "Generated 2026-10-16; original concept art, not gameplay or a 3D asset",
+    "conversion": "Original PNG"
   }
 });
