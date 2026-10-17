@@ -170,7 +170,7 @@ const server=http.createServer(async(req,res)=>{
     for(const file of ['cinematic.js','combat-presentation.js','audio.js','characters.js','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
     for(const name of ['actors','environment','lighting','harbour','quality','palette','assets','asset-cache'])files['/scene/'+name+'.js']='scene/'+name+'.js';
     files['/asset-manifest.js']='asset-manifest.js';
-    for(const name of ['config','state','input','movement','hitboxes','combat','rounds','ai','engine','client','view','fighters','environment'])files['/arcade/'+name+'.js']='arcade/'+name+'.js';
+    for(const name of ['config','state','input','movement','hitboxes','combat','rounds','ai','engine','client','view','fighters','environment','catalog','preview'])files['/arcade/'+name+'.js']='arcade/'+name+'.js';
     files['/arcade.html']='arcade.html';files['/arcade/style.css']='arcade/style.css';
     if(/^\/assets\/[a-z0-9_]+\.(jpg|png|hdr|glb)$/.test(url.pathname))files[url.pathname]=url.pathname.slice(1);
     const file=files[url.pathname];if(!file){res.writeHead(404);return res.end('Not found');}

@@ -1,3 +1,4 @@
+import {heroById,arenaById} from '../public/arcade/catalog.js';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {createMatch,step,acceptInput} from '../public/arcade/engine.js';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
@@ -21,6 +22,7 @@ export async function arcadeRequest(store,player,route,b={},method='POST',now=Da
   if(await store.recentCount(player.id,now)>=5)fail('Please wait a minute before creating another match.',429);
   const mode=b.mode==='room'?'room':'ai',id=code(),difficulty=['easy','normal','hard'].includes(b.difficulty)?b.difficulty:'normal';
   const room={code:id,members:[player.id,null],labels:[player.name,mode==='ai'?'The Oathbreaker':'Waiting for challenger'],status:mode==='ai'?'playing':'waiting',seen:[now,now],updated:now,remainder:0,expires:now+3600000,match:createMatch(randomUUID(),mode,difficulty)};
+  room.match.arena=arenaById(b.arena).id;room.match.heroes=[heroById(b.hero).id,heroById(b.opponent||'warden').id];
   await store.insert(room);return view(room,player.id);
  }
  const id=String(b.code||'').trim().toUpperCase();if(!/^[A-F0-9]{10}$/.test(id))fail('Enter the 10-character room code.');
@@ -30,6 +32,7 @@ export async function arcadeRequest(store,player,route,b={},method='POST',now=Da
   if(route==='join'){
    if(room.members.includes(player.id))return view(room,player.id);
    if(room.status!=='waiting'||room.members[1]||room.match.mode!=='room')fail('This room is full or already started.',409);
+   room.match.heroes ||= ['voyager','warden'];room.match.heroes[1]=heroById(b.hero).id;
    room.members[1]=player.id;room.labels[1]=player.name;room.seen=[now,now];room.status='playing';room.updated=now;
    return view(room,player.id);
   }

@@ -28,3 +28,22 @@ test('SQLite Arcade resumes durable match snapshots after reopening the database
  const dir=await mkdtemp(path.join(tmpdir(),'arcade-durable-')),file=path.join(dir,'test.sqlite');let db=new DatabaseSync(file);
  try{const player={id:'saved',name:'Saved guest'},r=await arcadeRequest(sqliteRooms(db),player,'create',{mode:'ai'},'POST',1000);await arcadeRequest(sqliteRooms(db),player,'sync',{code:r.code,seq:7,axis:1},'POST',1100);db.close();db=new DatabaseSync(file);const resumed=await arcadeRequest(sqliteRooms(db),player,'resume',{},'POST',1200);assert.equal(resumed.code,r.code);assert.equal(resumed.match.id,r.match.id);assert.equal(resumed.match.fighters[0].seq,7);}finally{db.close();await rm(dir,{recursive:true,force:true});}
 });
+
+test('roster and arena persist, guests choose their hero but cannot override arena',async()=>{
+ const db=new DatabaseSync(':memory:'),store=sqliteRooms(db),a={id:'host',name:'Host'},b={id:'guest',name:'Guest'};
+ try{const r=await arcadeRequest(store,a,'create',{mode:'room',hero:'azure',arena:'frost'},'POST',1000);
+ const joined=await arcadeRequest(store,b,'join',{code:r.code,hero:'hood',arena:'embers'},'POST',1001);
+ assert.deepEqual(joined.match.heroes,['azure','hood']);assert.equal(joined.match.arena,'frost');
+ const resumed=await arcadeRequest(store,a,'resume',{},'POST',1002);assert.deepEqual(resumed.match.heroes,joined.match.heroes);
+ await assert.rejects(()=>arcadeRequest(store,b,'sync',{code:r.code,hero:'voyager'},'POST',1003),/Only input intents/);
+ }finally{db.close();}
+});
+test('invalid cosmetic choices fall back safely without changing fighter stats',async()=>{
+ const db=new DatabaseSync(':memory:');try{const r=await arcadeRequest(sqliteRooms(db),{id:'a',name:'A'},'create',{hero:'../secret',arena:'unknown'},'POST',1000);
+ assert.equal(r.match.heroes[0],'voyager');assert.equal(r.match.arena,'harbour');assert.equal(r.match.fighters[0].hp,100);
+ }finally{db.close();}
+});
+test('early attack survives idle packets and starts on recovery, then expires',()=>{
+ const s=fight(),f=s.fighters[0];f.cooldown=4;input(s,0,{attack:'heavy'});input(s,0,{axis:0});frames(s,4);assert.equal(f.move,'heavy');
+ const t=fight();t.fighters[0].cooldown=20;input(t,0,{attack:'heavy'});frames(t,25);assert.equal(t.fighters[0].move,null);
+});

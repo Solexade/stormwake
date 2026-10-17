@@ -1,6 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import {loadGLB} from '../scene/assets.js';
 import {characterMount} from '../characters.js';
+import {heroById} from './catalog.js';
 import {MOVES} from './config.js';
 
 // Presentation only: the server's coordinates, attack frames and hitboxes win.
@@ -11,23 +12,33 @@ export function inPlaceClip(clip) {
  }
  return copy;
 }
-export async function createFighter(scene,index) {
- let source,fallback=false;
- try {source=await loadGLB(index?'hooded_blade.glb':'azure_champion.glb');}
+export async function createFighter(scene,index,heroId) {
+ const hero=heroById(heroId);let source,fallback=hero.asset==='knight.glb';
+ try {source=await loadGLB(hero.asset);}
  catch(error){console.warn('Detailed fighter unavailable:',error.message);source=await loadGLB('knight.glb');fallback=true;}
  const model=source.scene,root=new T.Group(),mount=characterMount(model,1);
  root.add(mount);scene.add(root);
  model.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;n.frustumCulled=false;
-  const material=m=>{const c=m.clone();c.roughness=.76;c.metalness=.12;return c;};
+  const material=m=>{const c=m.clone();c.color.multiply(new T.Color(hero.color));c.roughness=.76;c.metalness=.12;return c;};
   n.material=Array.isArray(n.material)?n.material.map(material):material(n.material);
  }});
+ // Solo's knight asset is intentionally equipment-free: fit carried gear to its sockets.
+ if(fallback){
+  model.updateMatrixWorld(true);
+  const attach=(name)=>{const palm=model.getObjectByName(name);if(!palm)return null;const grip=new T.Group();grip.scale.setScalar(1/palm.getWorldScale(new T.Vector3()).x);palm.add(grip);return grip;};
+  const steel=new T.MeshStandardMaterial({color:'#b8c6d2',metalness:.7,roughness:.4});
+  const leather=new T.MeshStandardMaterial({color:'#493a2e',roughness:.9});
+  const hand=attach('PalmR'),offhand=attach('PalmL');
+  if(hand){const blade=new T.Mesh(new T.BoxGeometry(.075,.85,.035),steel);blade.position.y=.42;hand.add(blade);const cross=new T.Mesh(new T.BoxGeometry(.27,.045,.06),steel);hand.add(cross);const handle=new T.Mesh(new T.CylinderGeometry(.028,.028,.2,8),leather);handle.position.y=-.12;hand.add(handle);hand.rotation.z=Math.PI/2;}
+  if(offhand){const shield=new T.Mesh(new T.CylinderGeometry(.28,.28,.065,20),leather);shield.rotation.x=Math.PI/2;offhand.add(shield);const boss=new T.Mesh(new T.SphereGeometry(.08,10,8),steel);boss.position.z=-.06;offhand.add(boss);}
+ }
  const mixer=new T.AnimationMixer(model),actions={};
  for(const clip of source.animations){const name=clip.name.split('|').pop();actions[name]=mixer.clipAction(inPlaceClip(clip));}
  const hips=model.getObjectByName(fallback?'Torso':'mixamorigHips')||model.getObjectByName('mixamorig:Hips');
  // Loader sanitizes ':' from bone names. Find by suffix so authored rigs remain compatible.
  const bone=suffix=>{let found;model.traverse(n=>{if(n.isBone&&n.name.endsWith(suffix))found=n;});return found;};
  const bones={spine:bone('Spine'),left:bone('LeftUpLeg'),right:bone('RightUpLeg'),leftKnee:bone('LeftLeg'),rightKnee:bone('RightLeg')};
- return {root,mount,model,mixer,actions,fallback,key:null,current:null,bones,hips};
+ return {heroId:hero.id,root,mount,model,mixer,actions,fallback,key:null,current:null,bones,hips};
 }
 export function animateFighter(a,f,dt,frame) {
  a.root.position.x+=(f.x-a.root.position.x)*(1-Math.exp(-dt*26));a.root.position.y=f.y;

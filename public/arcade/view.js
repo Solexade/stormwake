@@ -1,3 +1,4 @@
+import {arenaById} from './catalog.js';
 import * as T from '../vendor/three.module.js';
 import {createFighter,animateFighter} from './fighters.js';
 import {dressArena} from './environment.js';
@@ -18,13 +19,22 @@ export async function createArena(canvas){
  const sea=add(new T.PlaneGeometry(90,90),new T.MeshStandardMaterial({color:'#173e4c',roughness:.3,metalness:.25}),6,-.7,-12);sea.rotation.x=-Math.PI/2;
  const ring=add(new T.TorusGeometry(2,.025,6,64),new T.MeshBasicMaterial({color:'#7ba2a0'}),6,.015,0);ring.rotation.x=-Math.PI/2;
  const scenery=dressArena(renderer,scene,stone,canvas);
- const actors=await Promise.all([createFighter(scene,0),createFighter(scene,1)]);
- canvas.dataset.characterAssets=actors.some(a=>a.fallback)?'fallback':'azure-champion,hooded-blade';
+ let actors=await Promise.all([createFighter(scene,0,'voyager'),createFighter(scene,1,'warden')]);
+ let selectionVersion=0;
+ async function configure(s){
+  const version=++selectionVersion,theme=arenaById(s.arena);
+  scenery.select(theme.id);scene.background.set(theme.sky);scene.fog.color.set(theme.sky);sea.material.color.set(theme.sea);key.color.set(theme.key);rim.color.set(theme.rim);stone.color.set(theme.floor);
+  const ids=s.heroes||['voyager','warden'];
+  const replacements=await Promise.all(ids.map(async(id,i)=>{if(actors[i].heroId===id)return actors[i];const a=await createFighter(scene,i,id);a.root.visible=false;return a;}));
+  if(version!==selectionVersion){replacements.forEach(a=>{if(!actors.includes(a))a.root.removeFromParent();});return;}
+  actors.forEach(a=>{if(!replacements.includes(a))a.root.removeFromParent();});actors=replacements;actors.forEach((a,i)=>{a.root.visible=true;a.root.position.x=s.fighters[i].x;});canvas.dataset.characterAssets=ids.join(',');
+ }
+ canvas.dataset.characterAssets='voyager,warden';
  const sparks=[];for(let i=0;i<14;i++){const mesh=add(new T.SphereGeometry(.035,4,3),new T.MeshBasicMaterial({color:'#ffe2a6'}),0,0,0);mesh.visible=false;sparks.push(mesh);}
  let matchId=null,lastEvent=0,burst=0,hitX=6,shake=0,last=performance.now(),frame=0;
  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
  function resize(){const r=canvas.getBoundingClientRect();renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.position.z=Math.max(12,8.5/Math.max(.4,camera.aspect));camera.updateProjectionMatrix();}new ResizeObserver(resize).observe(canvas);resize();
- return {quality(low){scenery.quality(low);renderer.setPixelRatio(low?1:Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=!low;resize();},draw(s){const now=performance.now(),dt=Math.min(.05,(now-last)/1000);last=now;if(!s)return;if(matchId!==s.id){matchId=s.id;lastEvent=0;actors.forEach((a,i)=>{a.root.position.x=s.fighters[i].x;a.key=null;});}
+ return {quality(low){scenery.quality(low);renderer.setPixelRatio(low?1:Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=!low;resize();},draw(s){const now=performance.now(),dt=Math.min(.05,(now-last)/1000);last=now;if(!s)return;if(matchId!==s.id){matchId=s.id;lastEvent=0;configure(s).catch(e=>console.warn('Selection fallback',e.message));actors.forEach((a,i)=>{a.root.position.x=s.fighters[i].x;a.key=null;});}
   for(const e of s.events)if(e.id>lastEvent){lastEvent=e.id;if(e.type==='hit'||e.type==='block'){hitX=s.fighters[e.target].x;burst=.22;shake=reduced?0:.12;}}
   actors.forEach((a,i)=>animateFighter(a,s.fighters[i],dt,s.frame));
   burst=Math.max(0,burst-dt);shake=Math.max(0,shake-dt);sparks.forEach((m,i)=>{m.visible=burst>0;const age=.22-burst;m.position.set(hitX+Math.cos(i*2.4)*age*4,1.3+Math.sin(i*2.4)*age*3,.25);});
