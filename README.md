@@ -1,6 +1,6 @@
 # Stormwake: The Shattered Isles
 
-An original browser adventure by **[@oxsolexade](https://x.com/oxsolexade)**. Version 0.5 is a playable **3D prototype**, with an original articulated Norse adventurer, textured environments, animated water, shadows and a perspective follow camera. The visual style is grounded, stylized fantasy; it is not photorealistic or a production release. The community token $WAKE has launched on vibe/vibe testnet; token utility is not integrated into gameplay.
+An original browser adventure by **[@oxsolexade](https://x.com/oxsolexade)**. Version 0.5 is a playable **3D prototype**, with an original articulated Norse adventurer, textured environments, animated water, shadows and a perspective follow camera. The visual style is grounded, stylized fantasy; it is not photorealistic or a production release. Stormwake is a free arcade adventure: choose a username and play, with no email, password, wallet or payments.
 
 Game models, story and synthesized sound are included locally. Photo-based environment textures and HDR lighting are CC0 assets from Poly Haven; see THIRD_PARTY.md. Three.js r180 is bundled under its MIT license in `public/vendor/THREE-LICENSE.txt`; playing does not require a CDN or external asset downloads. The renderer requires WebGL 2. Use **Performance** mode if your device struggles with shadows, or **Tactical view** for a wider camera.
 
@@ -50,7 +50,7 @@ The original project's folder name stays `vibe-shattered-isles` to preserve loca
 
 ## Local SQLite preview
 
-`data/isles.sqlite` stores guests, completed expeditions and shared progress. It is excluded from version control. Use a recovery key or a linked wallet to recover a profile after cookie loss. Active runs are in memory and end on server restart; completed results survive.
+`data/isles.sqlite` stores guests, completed expeditions and shared progress. It is excluded from version control. Use a private recovery key to recover a profile after cookie loss. Active runs are in memory and end on server restart; completed results survive.
 
 This server needs a **persistent Node process and persistent disk**. It is not suitable for deployment unchanged to Vercel Functions: the live game tick and local SQLite need a long-running server. Use one server instance behind HTTPS, with `HOST=0.0.0.0`, `NODE_ENV=production`, and `DATA_DIR` pointing at a backed-up persistent volume. Production cookies require HTTPS. Multi-instance scaling needs a shared database and a run-owner/coordinator design.
 
@@ -82,15 +82,15 @@ A Dockerfile is included for a future persistent host. It has not been deployed 
 
 Enter Hearthhall in the harbour using E or its navigation button. It pauses your expedition, allows rest, and offers persistent gear upgrades and healing draughts for banked salvage. Your first victory unlocks a vitality perk.
 
-Wallet login uses a single-use signed message verified by the server, not a transaction. Rabby/MetaMask-compatible injected EOA wallets are supported; contract-wallet signatures are not supported. Existing wallet profiles are restored separately; guest balances are not merged.
+## Username entry and free arcade play
 
-The currently disabled Record arrival onchain feature previously sent a zero-value transaction to your own wallet with a unique memo on Robinhood Chain Testnet (46630). You approve it in your wallet and need test ETH for gas. The server verifies the chain, sender, recipient, memo and successful receipt. This is an arrival receipt, not a contract, NFT, onchain score or token reward. Gameplay remains server-side.
+Choose a username (3–18 letters, numbers, spaces, dashes or underscores) and select **Play free**. No email, password, wallet, blockchain network, or payment is required. Progress is tied to the server-issued HttpOnly browser session, not to the name alone. Returning browsers keep their profile. Usernames are display names, not unique account credentials; choosing another player's name never loads their save.
 
-Faucet: https://faucet.testnet.chain.robinhood.com/ . Set PUBLIC_ORIGIN to your HTTPS origin in production.
+**Save & restore** creates a private recovery key for another browser or device. Anyone with the key can access that profile; store it privately. Keys last one year. Existing cookies and recovery keys continue to work, including profiles previously linked to wallets. Existing players confirm a username once after this update without losing inventory, scores or progress. Wallet sign-in and onchain endpoints return HTTP 410 and the browser no longer loads wallet-provider code. A player who has lost both their cookie and recovery key cannot restore a former wallet save by username.
 
 ## Flexible controls and weapons (0.4)
 
-Connect wallet is directly available in the top navigation; sign in before leaving the harbour. Safehouse & shop opens rest, forging, armour, boots and potion purchases.
+Choose a username before leaving the harbour. Safehouse & shop opens rest, forging, armour, boots and potion purchases.
 
 Movement now faces travel direction unless attacking, guarding or locking a target. Rotate the camera with its arrow buttons; movement stays relative to the camera. Select axe, sword or spear from the weapon menu, or press 1/2/3. Switching waits until the current move finishes. Sword trades damage for speed and stamina efficiency; spear trades recovery time and sweep width for reach. Weapon forging adds permanent damage to all weapons.
 
@@ -100,7 +100,7 @@ Touch controls can be enabled on any device. Drag the left stick to move, reach 
 
 Vercel uses api/index.js and the cloud/ Postgres backend, not the local SQLite server. Set DATABASE_URL (pooled Neon/Postgres URL) on Vercel. Tables use the stormwake_ prefix to keep this game isolated from other products. The schema initializes on the first API request.
 
-Cloud profiles, sessions, wallets, gear, potions, active expedition snapshots, completed/abandoned runs, purchases, combat events, contributions and confirmed arrival receipts persist across function restarts. My records shows the latest 50 personal activity records. Raw wallet signatures and private keys are not stored. Guest cookies last one year; wallet login restores the same profile across browsers. Disconnecting does not delete saved progress.
+Cloud profiles, sessions, gear, potions, active expedition snapshots, completed/abandoned runs, purchases, combat events, contributions persist across function restarts. My records shows the latest 50 personal activity records. Raw wallet signatures and private keys are not stored. Guest cookies last one year; private recovery keys restore the same profile across browsers.
 
 The server advances combat from elapsed wall-clock time on each input request, with bounded catch-up after connection loss. Browser requests never supply trusted scores or damage. PostgreSQL row locks serialize updates for a player, and extraction rewards are committed with the run state to prevent double credit. Database storage and function usage remain subject to the hosting account quotas.
 
@@ -111,12 +111,9 @@ Starting or resuming an expedition enters a viewport-sized play mode with no pag
 
 This remains a stylized solo prototype. Additional islands, daily quests, motion-captured animations and real-device mobile performance validation are future work; no token rewards are promised.
 
-## Guest-only release
-Wallet sign-in was temporarily disabled in this release; it is restored in the update below. Onchain arrival endpoints remain disabled. Existing profile records are retained. Progress uses a server-side guest profile and an HttpOnly cookie with a one-year lifetime, renewed as players return. Save & restore creates a private, one-year recovery key for moving to another browser; it grants access to the profile and must not be shared. Production saves active expeditions in Postgres, with the existing 45-minute expedition limit. Local SQLite saves inventory and results; active local runs remain in memory. Nearby cache, shrine, shop and extraction prompts are tappable. Three successful melee strikes charge one Stormbreaker button; misses and storm damage do not charge it.
+## Free arcade release
 
-## Optional wallet sign-in restored
-Connect wallet opens a provider menu with an explicit Disconnect action. Guests can still play and use recovery keys. Sign-in is a message signature; arrival transactions remain disabled. Connecting pauses an active expedition. First linking a guest profile revokes old guest sessions and recovery keys; create a fresh recovery key after linking. Switching profiles and disconnecting pause the prior expedition rather than abandoning it.
-
+All players enter with a username. Wallet sign-in and arrival transactions have been removed. Existing profile records are retained. Progress uses a server-side profile and an HttpOnly cookie with a one-year lifetime, renewed as players return. Save & restore creates a private, one-year recovery key for another browser. Production saves active expeditions in Postgres, with the existing 45-minute expedition limit. Local SQLite saves inventory and results; active local runs remain in memory. Nearby cache, shrine, shop and extraction prompts are tappable. Three successful melee strikes charge one Stormbreaker button; misses and storm damage do not charge it.
 
 ## October material and responsiveness update
 
@@ -138,3 +135,22 @@ Local photographic ground, rock and timber maps use normal and roughness detail 
 - Improved armour reflections, restored bone-attached capes and archer bows on the existing CC0 knight. These remain stylized assets, not photorealistic replacements.
 - Single-pass highlight bloom and subtle cool-shadow/warm-highlight grading; low graphics mode bypasses the pass.
 - Free asset route: Quaternius CC0 animation/character packs and Poly Haven CC0 materials/HDRIs. Higher-detail hero art still requires modelling, rigging, retargeting, and mobile optimization; effects alone cannot deliver AAA character quality.
+
+## Publish the arcade update to Vercel
+
+Target the existing **stormwake** project in **adebayosolomon54-2971s-projects**:
+https://vercel.com/adebayosolomon54-2971s-projects/stormwake
+
+From the repository root, after `npm ci`, `npm run build`, and `npm test`:
+
+```sh
+# Authenticate with Vercel securely first, or inject VERCEL_TOKEN through environment settings.
+# Do not paste tokens into chat or commit them.
+npm exec --yes --package vercel@64.5.0 -- vercel project inspect stormwake --scope adebayosolomon54-2971s-projects
+npm exec --yes --package vercel@64.5.0 -- vercel link --yes --project stormwake --scope adebayosolomon54-2971s-projects
+npm exec --yes --package vercel@64.5.0 -- vercel deploy --prod --yes --scope adebayosolomon54-2971s-projects
+```
+
+Keep the existing production `DATABASE_URL` (or `POSTGRES_URL`) configured on Vercel. It must point to the existing game database to retain saves. This update adds `usernameCreated` to profile JSON on username creation; no destructive Postgres migration is needed. Local SQLite adds an independent `username_created` column automatically. Do not replace production storage with SQLite or ephemeral memory.
+
+After Vercel reports a ready production deployment, verify its actual production URL: the homepage has no Connect wallet control; a new browser can create a username and start play; a returning browser retains its name and progress; recovery keys still restore profiles; `/api/auth/challenge` and `/api/auth/verify` return 410. Confirm `/api/state` returns 200 before declaring hosting complete. Publishing requires access to this Vercel team/project; a passing local build does not publish the update.

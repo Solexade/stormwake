@@ -5,7 +5,6 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {generatePrivateKey,privateKeyToAccount} from 'viem/accounts';
 import {DatabaseSync} from 'node:sqlite';
 test('HTTP sessions, score tampering, origin checks, and persistence',async t=>{
   const dir=await mkdtemp(path.join(tmpdir(),'isles-test-'));const root=fileURLToPath(new URL('../',import.meta.url));
@@ -14,6 +13,8 @@ test('HTTP sessions, score tampering, origin checks, and persistence',async t=>{
   await new Promise((resolve,reject)=>{child.stdout.once('data',resolve);child.once('error',reject);child.once('exit',c=>reject(Error(`server exit ${c}`)));});
   const base='http://127.0.0.1:5194';let response=await fetch(base+'/api/state');const cookie=response.headers.get('set-cookie').split(';')[0];let state=await response.json();assert.equal(state.player.salvage,0);assert.equal(state.leaderboard.length,0);
   const post=(route,data,extra={})=>fetch(base+'/api/'+route,{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json',...extra},body:JSON.stringify(data)});
+  assert.equal(state.player.usernameCreated,false);assert.equal('wallet' in state.player,false);
+  assert.equal((await post('start',{})).status,400);
   response=await post('profile',{name:'Test Voyager'});assert.equal((await response.json()).player.name,'Test Voyager');
   response=await post('profile',{name:'<script>'});assert.equal(response.status,400);
   response=await post('start',{});const run=(await response.json()).run;assert.equal(run.status,'active');
@@ -40,13 +41,10 @@ test('HTTP sessions, score tampering, origin checks, and persistence',async t=>{
   response=await post('save/restore',{key:'SW-'+'0'.repeat(64)},{Cookie:freshCookie});assert.equal(response.status,401);
   response=await post('save/restore',{key},{Cookie:freshCookie});assert.equal(response.status,200);const restored=await response.json();assert.equal(restored.player.id,state.player.id);assert.equal(restored.player.gear.axe,1);assert.equal(restored.player.salvage,40);
   const recoveredCookie=response.headers.get('set-cookie').split(';')[0];assert.match(response.headers.get('set-cookie'),/Max-Age=31536000/);
-  response=await fetch(base+'/api/state',{headers:{Cookie:recoveredCookie}});assert.equal((await response.json()).player.name,'Test Voyager');
-  const account=privateKeyToAccount(generatePrivateKey());
-  const challenge=await (await post('auth/challenge',{address:account.address},{Cookie:recoveredCookie})).json();const signature=await account.signMessage({message:challenge.message});
-  response=await post('auth/verify',{nonce:challenge.nonce,signature},{Cookie:recoveredCookie});assert.equal(response.status,200);const signedCookie=response.headers.get('set-cookie').split(';')[0];assert.equal((await response.json()).player.id,state.player.id);
-  response=await post('auth/verify',{nonce:challenge.nonce,signature},{Cookie:signedCookie});assert.equal(response.status,401);
-  response=await post('save/restore',{key},{Cookie:signedCookie});assert.equal(response.status,401,'old guest recovery key is revoked');
-  response=await post('auth/logout',{}, {Cookie:signedCookie});assert.equal(response.status,200);
-  response=await fetch(base+'/api/state',{headers:{Cookie:signedCookie}});assert.notEqual((await response.json()).player.id,state.player.id);
+  response=await fetch(base+'/api/state',{headers:{Cookie:recoveredCookie}});const returning=await response.json();assert.equal(returning.player.name,'Test Voyager');assert.equal(returning.player.usernameCreated,true);
+  for(const route of ['auth/challenge','auth/verify'])assert.equal((await post(route,{}, {Cookie:recoveredCookie})).status,410);
+  response=await post('profile',{name:'Test Voyager'},{Cookie:freshCookie});assert.equal(response.status,200);assert.notEqual((await response.json()).player.id,state.player.id);
+  response=await fetch(base+'/wallet.js');assert.equal(response.status,404);
+  response=await fetch(base+'/');const html=await response.text();assert.doesNotMatch(html,/walletBtn|Connect wallet|Save \/ wallet/);assert.match(html,/FREE ARCADE ADVENTURE/);
 
 });
