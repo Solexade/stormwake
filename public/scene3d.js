@@ -1,3 +1,4 @@
+import {dressWarrior} from './characters.js';
 import {cinematicPass} from './cinematic.js';
 import {warningFor} from './combat-presentation.js';
 import {createActorFactory,animateActor} from './scene/actors.js';
@@ -26,7 +27,8 @@ export function createWorld(canvas){
  materials.ready.then(()=>{if(scene.environment!==environment.texture)environment.dispose();});
  const warrior=createActorFactory({scene,mats,box,ball,cylinder,beam,mesh,form,batchStatic,contactMaterial,canvas});
  let orbit=0;
- const player=warrior('player');const actors=new Map();let actorRun='';
+ const player=warrior('player');
+ window.addEventListener('stormwake:hero',event=>dressWarrior(player,canvas,event.detail));const actors=new Map();let actorRun='';
  const merchants=[{place:FORGE,title:'ASTRID · FORGE',actor:warrior('player')},{place:SUPPLIES,title:'EDDA · SUPPLIES',actor:warrior('player')}];
  for(const npc of merchants){npc.actor.weapon.visible=false;npc.actor.shield.visible=false;}
  const anvilGroup=new THREE.Group();anvilGroup.position.set((FORGE.x+33)*S,0,FORGE.y*S);scene.add(anvilGroup);cylinder(mats.darkwood,0,.30,0,.28,.35,.6,anvilGroup);box(mats.metal,0,.68,0,.82,.19,.38,anvilGroup);box(mats.metal,0,.51,0,.30,.2,.24,anvilGroup);const horn=mesh(new THREE.ConeGeometry(.13,.36,8),mats.steel,.55,.7,0,anvilGroup);horn.rotation.z=-Math.PI/2;

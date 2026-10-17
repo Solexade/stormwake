@@ -40,7 +40,7 @@ test('roster and arena persist, guests choose their hero but cannot override are
 });
 test('invalid cosmetic choices fall back safely without changing fighter stats',async()=>{
  const db=new DatabaseSync(':memory:');try{const r=await arcadeRequest(sqliteRooms(db),{id:'a',name:'A'},'create',{hero:'../secret',arena:'unknown'},'POST',1000);
- assert.equal(r.match.heroes[0],'voyager');assert.equal(r.match.arena,'harbour');assert.equal(r.match.fighters[0].hp,100);
+ assert.equal(r.match.heroes[0],'azure');assert.equal(r.match.arena,'harbour');assert.equal(r.match.fighters[0].hp,100);
  }finally{db.close();}
 });
 test('early attack survives idle packets and starts on recovery, then expires',()=>{

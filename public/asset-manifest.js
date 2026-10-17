@@ -177,5 +177,16 @@ export const ASSETS = Object.freeze({
     "source": "docs/ARCADE_ART_DIRECTION.md",
     "provenance": "Generated 2026-10-16; original concept art, not gameplay or a 3D asset",
     "conversion": "Original PNG"
-  }
+  },
+  "stormwake_reference.png": {
+  "url": "/assets/stormwake_reference.png",
+  "type": "png",
+  "bytes": 3481464,
+  "sha256": "0b9188cb6171f8484b37e8fe0afafb4da596f32ad39dccbcca0b36c679e7d0de",
+  "license": "User-provided project reference; independent rights not verified",
+  "creator": "User-provided artwork",
+  "source": "docs/ARCADE_ART_DIRECTION.md",
+  "provenance": "Supplied by project owner 2026-10-17 for Stormwake visual direction",
+  "conversion": "Unchanged PNG; reference illustration, not a playable model"
+}
 });

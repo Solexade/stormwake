@@ -16,3 +16,15 @@ test('Arcade animation root motion cannot displace fighter horizontally',()=>{
  const clip=new T.AnimationClip('walk',1,[new T.VectorKeyframeTrack('mixamorigHips.position',[0,1],[0,1,0,3,2,4])]);
  const copy=inPlaceClip(clip);assert.deepEqual([...copy.tracks[0].values],[0,1,0,0,2,0]);assert.deepEqual([...clip.tracks[0].values],[0,1,0,3,2,4]);
 });
+
+import {HEROES,heroById,heroMaterial} from '../public/heroes.js';
+test('shared hero contract provides Solo hand sockets and in-place locomotion sources',()=>{
+ assert.deepEqual(HEROES.map(h=>h.id),['azure','hood']);assert.equal(heroById('old-save').id,'azure');
+ for(const hero of HEROES){const b=readFileSync(new URL('../public/assets/'+hero.asset,import.meta.url));const gltf=JSON.parse(b.subarray(20,20+b.readUInt32LE(12)));
+ const names=gltf.nodes.map(n=>(n.name||'').replaceAll(':',''));
+ for(const socket of ['mixamorigSpine','mixamorigRightHand','mixamorigLeftHand'])assert.ok(names.includes(socket),hero.id+' '+socket);
+ assert.ok(gltf.animations.some(a=>a.name==='walk_loop'));
+ }
+ const original=new T.MeshStandardMaterial({color:'#ffffff'}),copy=heroMaterial(original,'hood');assert.notEqual(copy,original);assert.equal(original.color.getHex(),0xffffff);
+ const shader={fragmentShader:'#include <color_fragment>'};copy.onBeforeCompile(shader);assert.match(shader.fragmentShader,/clothMask/);
+});

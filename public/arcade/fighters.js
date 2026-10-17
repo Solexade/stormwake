@@ -1,3 +1,5 @@
+import {inPlaceClip,heroMaterial} from '../heroes.js';
+export {inPlaceClip} from '../heroes.js';
 import * as T from '../vendor/three.module.js';
 import {loadGLB} from '../scene/assets.js';
 import {characterMount} from '../characters.js';
@@ -5,13 +7,6 @@ import {heroById} from './catalog.js';
 import {MOVES} from './config.js';
 
 // Presentation only: the server's coordinates, attack frames and hitboxes win.
-export function inPlaceClip(clip) {
- const copy=clip.clone();
- for(const track of copy.tracks) if(/Hips\.position$/.test(track.name)) {
-  for(let k=0;k<track.values.length;k+=3){track.values[k]=track.values[0];track.values[k+2]=track.values[2];}
- }
- return copy;
-}
 export async function createFighter(scene,index,heroId) {
  const hero=heroById(heroId);let source,fallback=hero.asset==='knight.glb';
  try {source=await loadGLB(hero.asset);}
@@ -19,7 +14,7 @@ export async function createFighter(scene,index,heroId) {
  const model=source.scene,root=new T.Group(),mount=characterMount(model,1);
  root.add(mount);scene.add(root);
  model.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;n.frustumCulled=false;
-  const material=m=>{const c=m.clone();c.color.multiply(new T.Color(hero.color));c.roughness=.76;c.metalness=.12;return c;};
+  const material=m=>heroMaterial(m,hero.id);
   n.material=Array.isArray(n.material)?n.material.map(material):material(n.material);
  }});
  // Solo's knight asset is intentionally equipment-free: fit carried gear to its sockets.

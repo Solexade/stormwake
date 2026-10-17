@@ -67,3 +67,12 @@ Harbour Watch, Ember Keep and Frostbound Reach change lighting, sea/fog colors a
 Polling now has a separate in-flight flag so Leave is not ignored. Input changes flush after a pending request, tap queues survive ordinary latency, and requests time out after eight seconds. Blur/background/cancel clear controls. An eight-frame server attack buffer permits near-recovery follow-ups without changing damage or attack frame data.
 
 Validation: 66/66 tests and build pass. Browser viewport 390x844 has no horizontal overflow; combat targets are 60x58 CSS px and tapped actions release. Live roster, selected arena and Leave were browser-checked. Physical multitouch and independent-client internet validation remain outstanding. The existing Solo playthrough bot still dies at the boss instead of winning. Snapshot transport retains round-trip latency; this is not rollback netcode.
+
+
+## Shared hero correction and reference theme - 2026-10-17
+
+The project owner clarified that the reference's ember swordsman and violet hooded character are the intended recurring identities, not the older knight palette roster. Both modes now use a shared heroes.js contract: Ember Knight (azure_champion.glb) and Violet Wraith (hooded_blade.glb). This replaces the visible three knight-palette choices. The same source assets and cloth shader run in Solo, Arcade, previews and private-room rendering. Solo can switch cosmetic identity without reloading; server combat, gear and profile state are untouched. Its existing weapons attach to validated Mixamo hand sockets; root translation is stripped from presentation clips. Native clips are mapped to Solo poses; hood death/roll use presentation fallback poses rather than newly authored animation claims.
+
+Both HTML entries load storm-theme.css: charcoal/storm-blue panels, weathered gold actions, violet accents; Palatino/Georgia headings and Segoe UI body text replace condensed Impact. Fonts use system fallbacks and require no external font downloads. The supplied reference PNG is embedded unchanged as art direction, with its provenance recorded separately from the licensed GLBs.
+
+The available playable models remain stylized approximations. They are NOT exact reconstructed likenesses of the supplied illustration. Exact faces, ornate armour, flowing cloth and weapons require new licensed/custom rigged assets and animation production. The website explicitly distinguishes illustration from gameplay.

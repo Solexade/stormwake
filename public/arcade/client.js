@@ -1,12 +1,13 @@
+import {storedHero,chooseHero} from '../heroes.js';
 import {createHeroPreview} from './preview.js';
 import {HEROES,ARENAS,heroById,arenaById} from './catalog.js';
 import {createArena} from './view.js';
 const $=id=>document.getElementById(id),keyboard=new Set(),pointers=new Map(),commands=[];
 let room=null,view=null,viewPromise=null,busy=false,seq=0,lastSend=0,lastReply=0,low=false,lastMode='ai',lastDifficulty='normal',syncing=false,inputDirty=false;
-let selectedHero='voyager',selectedArena='harbour';
+let selectedHero=storedHero(),selectedArena='harbour';
 let heroPreview;try{heroPreview=createHeroPreview($('heroPreview'));}catch(e){$('heroPreview').hidden=true;console.warn('Character preview unavailable',e.message);}
 function selections(){
- $('heroChoices').replaceChildren(...HEROES.map(h=>{const b=document.createElement('button');b.type='button';b.className='hero-option';b.setAttribute('aria-pressed',String(h.id===selectedHero));b.innerHTML='<span>'+h.tag+'</span><strong>'+h.name+'</strong><small>'+h.description+'</small>';b.onclick=()=>{selectedHero=h.id;selections();};return b;}));
+ $('heroChoices').replaceChildren(...HEROES.map(h=>{const b=document.createElement('button');b.type='button';b.className='hero-option';b.setAttribute('aria-pressed',String(h.id===selectedHero));b.innerHTML='<span>'+h.tag+'</span><strong>'+h.name+'</strong><small>'+h.description+'</small>';b.onclick=()=>{selectedHero=chooseHero(h.id).id;selections();};return b;}));
  $('arenaChoices').replaceChildren(...ARENAS.map(a=>{const b=document.createElement('button');b.type='button';b.className='arena-option '+a.id;b.setAttribute('aria-pressed',String(a.id===selectedArena));b.innerHTML='<span>'+a.tag+'</span><strong>'+a.name+'</strong>';b.onclick=()=>{selectedArena=a.id;selections();};return b;}));
  const hero=heroById(selectedHero);$('previewName').textContent=hero.name;$('previewDescription').textContent=hero.description;
  if($('heroPreview').dataset.hero!==hero.id)heroPreview?.select(hero.id).catch(e=>console.warn('Character preview unavailable',e.message));

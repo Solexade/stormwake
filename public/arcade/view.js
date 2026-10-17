@@ -19,17 +19,17 @@ export async function createArena(canvas){
  const sea=add(new T.PlaneGeometry(90,90),new T.MeshStandardMaterial({color:'#173e4c',roughness:.3,metalness:.25}),6,-.7,-12);sea.rotation.x=-Math.PI/2;
  const ring=add(new T.TorusGeometry(2,.025,6,64),new T.MeshBasicMaterial({color:'#7ba2a0'}),6,.015,0);ring.rotation.x=-Math.PI/2;
  const scenery=dressArena(renderer,scene,stone,canvas);
- let actors=await Promise.all([createFighter(scene,0,'voyager'),createFighter(scene,1,'warden')]);
+ let actors=await Promise.all([createFighter(scene,0,'azure'),createFighter(scene,1,'hood')]);
  let selectionVersion=0;
  async function configure(s){
   const version=++selectionVersion,theme=arenaById(s.arena);
   scenery.select(theme.id);scene.background.set(theme.sky);scene.fog.color.set(theme.sky);sea.material.color.set(theme.sea);key.color.set(theme.key);rim.color.set(theme.rim);stone.color.set(theme.floor);
-  const ids=s.heroes||['voyager','warden'];
+  const ids=s.heroes||['azure','hood'];
   const replacements=await Promise.all(ids.map(async(id,i)=>{if(actors[i].heroId===id)return actors[i];const a=await createFighter(scene,i,id);a.root.visible=false;return a;}));
   if(version!==selectionVersion){replacements.forEach(a=>{if(!actors.includes(a))a.root.removeFromParent();});return;}
   actors.forEach(a=>{if(!replacements.includes(a))a.root.removeFromParent();});actors=replacements;actors.forEach((a,i)=>{a.root.visible=true;a.root.position.x=s.fighters[i].x;});canvas.dataset.characterAssets=ids.join(',');
  }
- canvas.dataset.characterAssets='voyager,warden';
+ canvas.dataset.characterAssets='azure,hood';
  const sparks=[];for(let i=0;i<14;i++){const mesh=add(new T.SphereGeometry(.035,4,3),new T.MeshBasicMaterial({color:'#ffe2a6'}),0,0,0);mesh.visible=false;sparks.push(mesh);}
  let matchId=null,lastEvent=0,burst=0,hitX=6,shake=0,last=performance.now(),frame=0;
  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
