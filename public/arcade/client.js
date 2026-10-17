@@ -56,3 +56,26 @@ async function sync(){if(!room||busy||syncing||room.match.phase==='finished'||(!
 setInterval(sync,80);
 function frame(){if(view&&room&&!document.hidden)view.draw(room.match);if(room&&room.match.phase!=='finished'&&lastReply&&performance.now()-lastReply>1200)$('network').textContent='CONNECTION DELAY';requestAnimationFrame(frame);}requestAnimationFrame(frame);
 api('resume').then(data=>{$('resume').hidden=!data.code;}).catch(e=>{$('error').textContent=e.message;});
+
+// Rename the existing session; never create or recover an identity from a name.
+async function profileRequest(route, body) {
+ const response = await fetch('/api/' + route, {method: body ? 'POST' : 'GET', headers: {'Content-Type':'application/json'}, ...(body ? {body:JSON.stringify(body)} : {}), signal:AbortSignal.timeout(8000)});
+ const data = await response.json();
+ if (!response.ok) throw Error(data.error || 'Could not save your username.');
+ return data;
+}
+profileRequest('state').then(data => {
+ $('username').value = data.player.name;
+ $('username').disabled = false;
+ $('saveUsername').disabled = false;
+ $('usernameStatus').textContent = 'Your existing progress is ready. Change your name whenever you like.';
+}).catch(error => { $('usernameStatus').textContent = error.message + ' Reload to retry; your save has not been changed.'; });
+$('usernameForm').onsubmit = async event => {
+ event.preventDefault(); $('saveUsername').disabled = true;
+ try {
+  const data = await profileRequest('profile', {name:$('username').value.trim()});
+  $('username').value = data.player.name;
+  $('usernameStatus').textContent = 'Username saved. Your progress and recovery keys are unchanged.';
+ } catch(error) { $('usernameStatus').textContent = error.message; }
+ finally { $('saveUsername').disabled = false; }
+};
