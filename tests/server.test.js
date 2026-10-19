@@ -24,9 +24,27 @@ test('HTTP sessions, score tampering, origin checks, and persistence',async t=>{
   response=await post('contribute',{amount:50});assert.equal(response.status,400);
   response=await post('contribute',{amount:-50});assert.equal(response.status,400);
   response=await post('profile',{name:'Attacker'},{Origin:'https://evil.example'});assert.equal(response.status,403);
+  // Arcade rooms share guest auth, but never overwrite a paused Solo expedition.
+  await post('pause',{paused:true});const soloBefore=(await (await fetch(base+'/api/run',{headers:{Cookie:cookie}})).json()).run;
+  const roomResponse=await post('arcade/create',{mode:'room'});assert.equal(roomResponse.status,200);const room=await roomResponse.json();
+  const guestResponse=await fetch(base+'/api/state');const guestCookie=guestResponse.headers.get('set-cookie').split(';')[0];
+  const join=await fetch(base+'/api/arcade/join',{method:'POST',headers:{Cookie:guestCookie,'Content-Type':'application/json'},body:JSON.stringify({code:room.code})});assert.equal(join.status,200);assert.equal((await join.json()).seat,1);
+  assert.equal((await post('arcade/sync',{code:room.code,seq:1,winner:0})).status,400);
+  assert.equal((await post('arcade/sync',{code:room.code,seq:1,axis:1})).status,200);
+  const soloAfter=(await (await fetch(base+'/api/run',{headers:{Cookie:cookie}})).json()).run;assert.equal(soloAfter.id,soloBefore.id);assert.equal(soloAfter.player.hp,soloBefore.player.hp);assert.equal(soloAfter.paused,true);
+  const arcadeEnd=await (await post('arcade/leave',{code:room.code})).json();assert.equal(arcadeEnd.match.winner,1);
+  for(const file of ['arcade.html','arcade/client.js','arcade/view.js','arcade/style.css'])assert.equal((await fetch(base+'/'+file)).status,200);
   response=await post('leave',{});assert.equal(response.status,200);
   response=await fetch(base+'/api/state',{headers:{Cookie:cookie}});state=await response.json();assert.equal(state.player.name,'Test Voyager');assert.equal(state.player.best,0);assert.equal(state.player.salvage,0);assert.equal(state.run.status,'abandoned');
   response=await fetch(base+'/server.js');assert.equal(response.status,404);
+  for(const file of ['asset-manifest.js','scene/environment.js','scene/actors.js','scene/lighting.js','scene/palette.js','scene/harbour.js','scene/quality.js','scene/assets.js','scene/asset-cache.js']){
+    const asset=await fetch(base+'/'+file);assert.equal(asset.status,200,file);assert.match(asset.headers.get('content-type'),/javascript/);
+  }
+  assert.equal((await fetch(base+'/scene/not-public.js')).status,404);
+  const page=await fetch(base+'/');const csp=page.headers.get('content-security-policy');
+  assert.match(csp,/connect-src 'self' blob:/);assert.match(csp,/img-src 'self' data: blob:/);assert.match(csp,/script-src 'self';/);
+  for(const name of ['boulder_01','wooden_barrels_01']){const model=await fetch(base+'/assets/'+name+'.glb',{method:'HEAD'});assert.equal(model.status,200);}
+
   response=await post('shop/buy',{item:'axe',cost:0});assert.equal(response.status,400);
   response=await post('weapon/equip',{weapon:'spear'});assert.equal(response.status,200);assert.equal((await response.json()).player.gear.weapon,'spear');
   response=await post('weapon/equip',{weapon:'admin'});assert.equal(response.status,400);

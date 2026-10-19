@@ -1,3 +1,4 @@
+import {arcadeRequest,postgresRooms} from '../arcade/service.js';
 import {database,initialize} from '../cloud/store.js';
 import {openSession,dispatch,persist} from '../cloud/game-service.js';
 export default async function handler(req,res){
@@ -12,7 +13,7 @@ export default async function handler(req,res){
   await initialize();c=await database().connect();await c.query('BEGIN');await c.query("SET LOCAL statement_timeout = '12000'");
   const token=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('isles='))?.slice(6),ctx=await openSession(c,token);
   const now=Date.now();ctx.p.rate??={start:now,count:0};if(now-ctx.p.rate.start>10000)ctx.p.rate={start:now,count:0};ctx.p.rate.count++;
-  let status=200,result;if(ctx.p.rate.count>150){status=429;result={error:'Please slow down for a moment.'};}else try{result=await dispatch(c,ctx,route,b||{},req.method,process.env.PUBLIC_ORIGIN||`https://${req.headers.host}`);}catch(e){if(!e.status)throw e;status=e.status;result={error:e.message};}
+  let status=200,result;if(ctx.p.rate.count>150){status=429;result={error:'Please slow down for a moment.'};}else try{result=route.startsWith('arcade/')?await arcadeRequest(postgresRooms(c),ctx.p,route.slice(7),b||{},req.method):await dispatch(c,ctx,route,b||{},req.method,process.env.PUBLIC_ORIGIN||`https://${req.headers.host}`);}catch(e){if(!e.status)throw e;status=e.status;result={error:e.message};}
   await persist(c,ctx.p);await c.query('COMMIT');if(ctx.cookie!==undefined)res.setHeader('Set-Cookie',`isles=${ctx.cookie}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${ctx.cookie?31536000:0}; Secure`);send(status,result);
  }catch(e){if(c)await c.query('ROLLBACK').catch(()=>{});console.error('Stormwake cloud request failed:',e.code||e.message);send(503,{error:'Cloud storage is temporarily unavailable. Your saved progress is safe. Please retry.'});}finally{c?.release();}
 }

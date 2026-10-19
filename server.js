@@ -1,4 +1,5 @@
 import http from 'node:http';
+import {arcadeRequest,sqliteRooms,serialized} from './arcade/service.js';
 import {readFile} from 'node:fs/promises';
 import {mkdirSync} from 'node:fs';
 import path from 'node:path';
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,player TEXT,expires I
 CREATE TABLE IF NOT EXISTS auth_nonces(nonce TEXT PRIMARY KEY,player TEXT,wallet TEXT,message TEXT,expires INTEGER,used INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS arrivals(nonce TEXT PRIMARY KEY,player TEXT,wallet TEXT,data TEXT,expires INTEGER,tx TEXT UNIQUE,block INTEGER);
 CREATE TABLE IF NOT EXISTS purchases(id TEXT PRIMARY KEY,player TEXT,item TEXT,cost INTEGER,created INTEGER);`);
+const arcadeStore=sqliteRooms(db);const serveArcade=serialized((p,route,b,method)=>arcadeRequest(arcadeStore,p,route,b,method));
 const runs=new Map();const rates=new Map();
 const digest=x=>createHash('sha256').update(x).digest('hex');
 const json=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
@@ -55,6 +57,7 @@ const server=http.createServer(async(req,res)=>{
       if(req.method==='GET'&&url.pathname==='/api/history'){const records=[...db.prepare('SELECT * FROM results WHERE player=?').all(p.id).map(r=>({kind:'expedition',created:r.created,payload:{score:r.score,salvage:r.salvage,seconds:r.seconds}})),...db.prepare('SELECT * FROM purchases WHERE player=?').all(p.id).map(r=>({kind:'purchase',created:r.created,payload:{item:r.item,cost:r.cost}}))].sort((a,b)=>b.created-a.created).slice(0,50);return json(res,200,{records});}
       if(req.method==='GET'&&url.pathname==='/api/run')return json(res,200,{run:runs.has(p.id)?snapshot(runs.get(p.id)):null});
       const b=req.method==='POST'?await body(req):{};
+      if(url.pathname.startsWith('/api/arcade/')){try{return json(res,200,await serveArcade(p,url.pathname.slice(12),b,req.method));}catch(e){if(e.status)return json(res,e.status,{error:e.message});throw e;}}
       if(req.method==='POST'&&url.pathname==='/api/save/key'){const key=randomBytes(32).toString('hex');db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(digest(key),p.id,Date.now()+31536000000);return json(res,200,{key:'SW-'+key});}
       if(req.method==='POST'&&url.pathname==='/api/save/restore'){
         const key=String(b.key||'').trim();if(!/^SW-[0-9a-f]{64}$/.test(key))return json(res,401,{error:'This recovery key is invalid or expired.'});
@@ -126,11 +129,15 @@ const server=http.createServer(async(req,res)=>{
     const files={'/':'index.html','/index.html':'index.html','/style.css':'style.css','/app.js':'app.js','/game.js':'game.js','/world.js':'world.js','/combat.js':'combat.js','/catalog.js':'catalog.js','/scene3d.js':'scene3d.js','/icon.svg':'icon.svg','/vendor/three.module.js':'vendor/three.module.js','/vendor/three.core.min.js':'vendor/three.core.min.js','/vendor/THREE-LICENSE.txt':'vendor/THREE-LICENSE.txt'};
     files['/vendor/BufferGeometryUtils.js']='vendor/BufferGeometryUtils.js';files['/adventure.js']='adventure.js';files['/movement-preview.js']='movement-preview.js';
     files['/motion.js']='motion.js';files['/realism.js']='realism.js';files['/vendor/HDRLoader.js']='vendor/HDRLoader.js';
-    for(const file of ['cinematic.js','combat-presentation.js','audio.js','characters.js','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
-    if(/^\/assets\/[a-z0-9_]+\.(jpg|hdr|glb)$/.test(url.pathname))files[url.pathname]=url.pathname.slice(1);
+    for(const file of ['cinematic.js','combat-presentation.js','audio.js','characters.js','heroes.js','hero-choice.js','storm-theme.css','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
+    for(const name of ['actors','environment','lighting','harbour','quality','palette','assets','asset-cache'])files['/scene/'+name+'.js']='scene/'+name+'.js';
+    files['/asset-manifest.js']='asset-manifest.js';
+    for(const name of ['config','state','input','movement','hitboxes','combat','rounds','ai','engine','client','view','fighters','environment','catalog','preview','audio'])files['/arcade/'+name+'.js']='arcade/'+name+'.js';
+    files['/arcade.html']='arcade.html';files['/arcade/style.css']='arcade/style.css';
+    if(/^\/assets\/[a-z0-9_]+\.(jpg|png|hdr|glb)$/.test(url.pathname))files[url.pathname]=url.pathname.slice(1);
     const file=files[url.pathname];if(!file){res.writeHead(404);return res.end('Not found');}
-    const bytes=await readFile(path.join(ROOT,'public',file));const types={'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.jpg':'image/jpeg','.hdr':'application/octet-stream','.glb':'model/gltf-binary'};
-    res.writeHead(200,{'Content-Type':types[path.extname(file)],'Cache-Control':'no-cache','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});res.end(req.method==='HEAD'?undefined:bytes);
+    const bytes=await readFile(path.join(ROOT,'public',file));const types={'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.hdr':'application/octet-stream','.glb':'model/gltf-binary'};
+    res.writeHead(200,{'Content-Type':types[path.extname(file)],'Cache-Control':'no-cache','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob:; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});res.end(req.method==='HEAD'?undefined:bytes);
   }catch(e){console.error(e.message);if(!res.headersSent)json(res,400,{error:'The request could not be completed. Please try again.'});else res.end();}
 });
 server.listen(Number(process.env.PORT)||5180,process.env.HOST||'127.0.0.1',()=>console.log(`Stormwake ready at http://${process.env.HOST||'127.0.0.1'}:${process.env.PORT||5180}`));

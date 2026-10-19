@@ -15,7 +15,7 @@ let profile=null,community={salvage:0,target:1500},leaders=[],run=null,playing=f
 let camera={x:1150,y:1070},zoom=.67,networkBusy=false,networkErrors=0,mouse={x:0,y:0,active:false},keys=new Set(),touch={dx:0,dy:0,attack:false,dodge:false,storm:false,interact:false};
 let aim=-Math.PI/2,playerVisual={...HOME},enemyVisual=new Map(),audio=null,sound=false,toastTimer,messageTimer,ravenTimer,dialogKind='',lastFrame=performance.now();
 let pulses={attack:false,dodge:false,storm:false,interact:false};
-const isTouch=matchMedia('(pointer:coarse)').matches;let touchEnabled=isTouch,orbit=0,bloodFX=true;
+const isTouch=(matchMedia('(any-pointer:coarse)').matches||navigator.maxTouchPoints>0);let touchEnabled=isTouch,orbit=0,bloodFX=true;
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -73,7 +73,7 @@ stick.onpointerdown=e=>{if(stickPointer!==null)return;e.preventDefault();stickPo
 
 adventure=createAdventureUI({api,modal,toast,applyState,acceptRun,getProfile:()=>profile,getRun:()=>playing?run:null,escape,sessionChanged:data=>{applyState(data);setPlaying(false);run=data.run||null;if(run?.status==='active')$('startBtn').innerHTML='Resume expedition <span>↗</span>';}});
 $('safehouseBtn').onclick=()=>adventure.open();
-$('saveBtn').onclick=showSave;
+$('saveBtn').onclick=showSave;$('usernameBtn').onclick=()=> $('profileBtn').click();
 $('weaponSelect').onchange=async()=>{try{const data=await api('weapon/equip',{weapon:$('weaponSelect').value});applyState(data);if(data.run)acceptRun(data.run);toast(WEAPONS[profile.gear.weapon].description);}catch(e){$('weaponSelect').value=run?.player.weapon||profile.gear?.weapon||'axe';toast(e.message);}canvas.focus({preventScroll:true});};
 $('orbitLeft').onclick=()=>{orbit-=Math.PI/4;world3d?.setOrbit(orbit);};$('orbitRight').onclick=()=>{orbit+=Math.PI/4;world3d?.setOrbit(orbit);};
 $('touchToggle').onclick=()=>{touchEnabled=!touchEnabled;$('touchControls').classList.toggle('hidden',!playing||!touchEnabled);$('touchToggle').setAttribute('aria-pressed',String(touchEnabled));resetInput();};
@@ -132,3 +132,6 @@ async function showSave(){
  $('restoreForm').onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{const data=await api('save/restore',{key:$('restoreKey').value.trim()});run=null;setPlaying(false);applyState(data);closeModal();if(data.run?.status==='active'){run=data.run;$('startBtn').innerHTML='Resume expedition <span>↗</span>';}toast('Your saved voyager has been restored.');}catch(e){toast(e.message);b.disabled=false;}};
  }catch(e){toast(e.message);}
 }
+
+// Explicit mode transition pauses an active Solo run; Arcade has its own page/input loop.
+$('arcadeLink').onclick=async event=>{event.preventDefault();try{await api('pause',{paused:true});location.assign('/arcade.html');}catch(e){toast('Could not pause Solo safely. '+e.message);}};

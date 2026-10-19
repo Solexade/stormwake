@@ -1,19 +1,24 @@
 import * as THREE from './vendor/three.module.js';
 import {HDRLoader} from './vendor/HDRLoader.js';
+import {ASSETS} from './asset-manifest.js';
+import {createAssetCache} from './scene/asset-cache.js';
 
 // Photo-based materials are local CC0 assets. Geometry stays playable while
 // they stream; failed downloads leave the original material intact.
 export function applyPhotographicMaterials(renderer,scene,mats,canvas){
  const loader=new THREE.TextureLoader();let pending=0,failed=0;
+ const tasks=[],textures=new Set();let environmentTarget=null;
+ const load=createAssetCache(id=>loader.loadAsync(ASSETS[id].url));
  const report=()=>{canvas.dataset.materials=pending?'loading':failed?'fallback':'ready';};
  function map(material,asset,kind,slot,repeat){
-  pending++;report();loader.load(`./assets/${asset}_${kind}_1k.jpg`,texture=>{
+  pending++;report();tasks.push(load(`${asset}_${kind}_1k.jpg`).then(texture=>{
    texture.colorSpace=slot==='map'?THREE.SRGBColorSpace:THREE.NoColorSpace;
    texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.repeat.set(...repeat);
    texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+   textures.add(texture);
    material[slot]=texture;if(slot==='map')material.color.set(material===mats.ground?'#a7ada0':material===mats.wood||material===mats.darkwood?'#aaa398':'#afb6b1');
    material.needsUpdate=true;pending--;report();
-  },undefined,()=>{failed++;pending--;report();});
+  }).catch(()=>{failed++;pending--;report();}));
  }
  for(const [name,asset,repeat,strength] of [
   ['ground','forest_floor',[.32,.32],.75],
@@ -25,13 +30,15 @@ export function applyPhotographicMaterials(renderer,scene,mats,canvas){
   const material=mats[name];material.bumpMap=null;material.normalScale=new THREE.Vector2(strength,strength);
   map(material,asset,'diff','map',repeat);map(material,asset,'nor_gl','normalMap',repeat);map(material,asset,'rough','roughnessMap',repeat);
  }
- pending++;report();new HDRLoader().load('./assets/furry_clouds_1k.hdr',texture=>{
+ pending++;report();tasks.push(new HDRLoader().loadAsync(ASSETS['furry_clouds_1k.hdr'].url).then(texture=>{
   texture.mapping=THREE.EquirectangularReflectionMapping;
   const generator=new THREE.PMREMGenerator(renderer),environment=generator.fromEquirectangular(texture);
+  environmentTarget=environment;
   scene.environment=environment.texture;scene.environmentIntensity=.65;
   // Only lighting/reflections use the photograph; the world keeps its original sky.
   generator.dispose();texture.dispose();pending--;report();
- },undefined,()=>{failed++;pending--;report();});
+ }).catch(()=>{failed++;pending--;report();}));
+ return {ready:Promise.all(tasks),dispose(){textures.forEach(t=>t.dispose());environmentTarget?.dispose();}};
 }
 
 export function needleMaterial(){

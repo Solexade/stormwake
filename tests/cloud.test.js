@@ -20,9 +20,10 @@ test('guest recovery restores server progress without wallet access or merging p
  const db=newDb(),{Pool}=db.adapters.createPg(),pool=new Pool();await pool.query(schema);const c=await pool.connect();
  const original=await openSession(c);await dispatch(c,original,'profile',{name:'Saved voyager'});original.p.salvage=140;original.p.gear={weapon:'spear',axe:2};await dispatch(c,original,'start');await persist(c,original.p);
  const {key}=await dispatch(c,original,'save/key');assert.match(key,/^SW-[0-9a-f]{64}$/);
+ const beforeId=original.p.id;await dispatch(c,original,'profile',{name:'New voyager'});await persist(c,original.p);assert.equal(original.p.id,beforeId);
  const guest=await openSession(c);const otherId=guest.p.id;
  await assert.rejects(()=>dispatch(c,guest,'save/restore',{key:'SW-'+'0'.repeat(64)}),{status:401});assert.equal(guest.p.id,otherId);
- const restored=await dispatch(c,guest,'save/restore',{key});assert.equal(restored.player.id,original.p.id);assert.equal(restored.player.salvage,140);assert.equal(restored.player.gear.axe,2);assert.equal(restored.run.id,original.p.run.id);
+ const restored=await dispatch(c,guest,'save/restore',{key});assert.equal(restored.player.id,original.p.id);assert.equal(restored.player.name,'New voyager');assert.equal(restored.player.salvage,140);assert.equal(restored.player.gear.axe,2);assert.equal(restored.run.id,original.p.run.id);
  await persist(c,guest.p);const again=await openSession(c,guest.cookie);assert.equal(again.p.id,original.p.id);
  const rows=(await c.query('SELECT token,expires FROM stormwake_sessions')).rows;assert.ok(rows.every(r=>!key.includes(r.token)));assert.ok(rows.every(r=>Number(r.expires)>Date.now()+300*86400000));
  for(const route of ['arrival/challenge','arrival/verify'])await assert.rejects(()=>dispatch(c,guest,route,{}),{status:410});
