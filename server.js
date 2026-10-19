@@ -8,7 +8,6 @@ import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
 import {createRun,tick,chooseRelic,snapshot,setInput,applyLoadout} from './public/game.js';
 import {SHOP_ITEMS,WEAPONS,SAFEHOUSE,FORGE,SUPPLIES,near,safeArea} from './public/catalog.js';
-import {CHAIN,loginChallenge,validSignature,arrivalChallenge,rpc,checkArrival} from './chain.js';
 const ROOT=path.dirname(fileURLToPath(import.meta.url));
 const DATA=process.env.DATA_DIR||path.join(ROOT,'data');mkdirSync(DATA,{recursive:true});
 const db=new DatabaseSync(path.join(DATA,'isles.sqlite'));
@@ -18,7 +17,7 @@ CREATE TABLE IF NOT EXISTS results(id TEXT PRIMARY KEY,player TEXT,score INTEGER
 CREATE TABLE IF NOT EXISTS world(id INTEGER PRIMARY KEY, salvage INTEGER DEFAULT 0);
 INSERT OR IGNORE INTO world(id,salvage) VALUES(1,0);`);
 const columns=db.prepare('PRAGMA table_info(players)').all().map(c=>c.name);
-for(const [name,type] of [['wallet','TEXT'],['gear',"TEXT DEFAULT '{}'"],['potions','INTEGER DEFAULT 1'],['checkin','TEXT']])if(!columns.includes(name))db.exec(`ALTER TABLE players ADD COLUMN ${name} ${type}`);
+for(const [name,type] of [['wallet','TEXT'],['gear',"TEXT DEFAULT '{}'"],['potions','INTEGER DEFAULT 1'],['checkin','TEXT'],['username_created','INTEGER DEFAULT 0']])if(!columns.includes(name))db.exec(`ALTER TABLE players ADD COLUMN ${name} ${type}`);
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS wallet_unique ON players(wallet) WHERE wallet IS NOT NULL;
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,player TEXT,expires INTEGER);
 CREATE TABLE IF NOT EXISTS auth_nonces(nonce TEXT PRIMARY KEY,player TEXT,wallet TEXT,message TEXT,expires INTEGER,used INTEGER DEFAULT 0);
@@ -28,8 +27,8 @@ const arcadeStore=sqliteRooms(db);const serveArcade=serialized((p,route,b,method
 const runs=new Map();const rates=new Map();
 const digest=x=>createHash('sha256').update(x).digest('hex');
 const json=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
-function profile(p){return {id:p.id,name:p.name,salvage:p.salvage,wins:p.wins,best:p.best,contribution:p.contribution,wallet:p.wallet,gear:JSON.parse(p.gear||'{}'),potions:p.potions,checkin:p.checkin};}
-function state(p){return {player:profile(p),chain:CHAIN,shop:SHOP_ITEMS,world:{salvage:db.prepare('SELECT salvage FROM world WHERE id=1').get().salvage,target:1500},leaderboard:db.prepare('SELECT name,best,wins,contribution FROM players WHERE wins>0 ORDER BY best DESC,wins DESC LIMIT 10').all(),run:runs.has(p.id)?snapshot(runs.get(p.id)):null};}
+function profile(p){return {id:p.id,name:p.name,salvage:p.salvage,wins:p.wins,best:p.best,contribution:p.contribution,usernameCreated:!!p.username_created,gear:JSON.parse(p.gear||'{}'),potions:p.potions};}
+function state(p){return {player:profile(p),shop:SHOP_ITEMS,world:{salvage:db.prepare('SELECT salvage FROM world WHERE id=1').get().salvage,target:1500},leaderboard:db.prepare('SELECT name,best,wins,contribution FROM players WHERE wins>0 ORDER BY best DESC,wins DESC LIMIT 10').all(),run:runs.has(p.id)?snapshot(runs.get(p.id)):null};}
 const fresh=id=>db.prepare('SELECT * FROM players WHERE id=?').get(id);
 function safeSession(p){const s=runs.get(p.id);return !s||s.status!=='active'||s.inSafehouse;}
 function cookie(res,token){res.setHeader('Set-Cookie',`isles=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000${process.env.NODE_ENV==='production'?'; Secure':''}`);}
@@ -48,7 +47,7 @@ const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname.startsWith('/api/')){
-      if(/^\/api\/arrival\//.test(url.pathname))return json(res,410,{error:'Onchain arrivals are currently disabled.'});
+      if(/^\/api\/(?:arrival\/|auth\/(?:challenge|verify)$)/.test(url.pathname))return json(res,410,{error:'Wallet sign-in and onchain features have been removed. Choose a username to play free.'});
       if(req.method!=='GET'&&req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)return json(res,403,{error:'Please use this gameâ€™s own tab.'});
       let token=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('isles='))?.slice(6);
       let p=token?(db.prepare('SELECT p.* FROM players p JOIN sessions s ON p.id=s.player WHERE s.token=? AND s.expires>?').get(digest(token),Date.now())||db.prepare('SELECT * FROM players WHERE token=? AND wallet IS NULL').get(digest(token))):null;
@@ -94,52 +93,15 @@ const server=http.createServer(async(req,res)=>{
         }catch(e){db.exec('ROLLBACK');throw e;}
         const updated=fresh(p.id),s=runs.get(p.id);if(s?.status==='active')applyLoadout(s,profile(updated));return json(res,200,state(updated));
       }
-      if(req.method==='POST'&&url.pathname==='/api/auth/challenge'){
-        if(!safeSession(p)&&!runs.get(p.id)?.paused)return json(res,400,{error:'Pause your expedition before connecting a wallet.'});
-        const origin=process.env.PUBLIC_ORIGIN||`${process.env.NODE_ENV==='production'?'https':'http'}://${req.headers.host}`;
-        let challenge;try{challenge=loginChallenge(b.address,origin);}catch{return json(res,400,{error:'Choose a valid EVM wallet address.'});}
-        db.prepare('DELETE FROM auth_nonces WHERE player=? OR expires<?').run(p.id,Date.now());
-        db.prepare('INSERT INTO auth_nonces(nonce,player,wallet,message,expires) VALUES(?,?,?,?,?)').run(challenge.nonce,p.id,challenge.wallet,challenge.message,challenge.expires);return json(res,200,challenge);
-      }
-      if(req.method==='POST'&&url.pathname==='/api/auth/verify'){
-        if(!safeSession(p)&&!runs.get(p.id)?.paused)return json(res,400,{error:'Pause your expedition before connecting a wallet.'});
-        const entry=db.prepare('SELECT * FROM auth_nonces WHERE nonce=? AND player=? AND used=0').get(String(b.nonce||''),p.id);
-        if(!entry)return json(res,401,{error:'Sign-in expired or already used. Request a new signature.'});
-        db.prepare('UPDATE auth_nonces SET used=1 WHERE nonce=?').run(entry.nonce);
-        if(!await validSignature(entry,b.signature))return json(res,401,{error:'The wallet signature did not match or expired.'});
-        let target=db.prepare('SELECT * FROM players WHERE wallet=?').get(entry.wallet);
-        if(!target){if(!p.wallet){db.prepare('DELETE FROM sessions WHERE player=?').run(p.id);db.prepare('UPDATE players SET wallet=?,token=? WHERE id=?').run(entry.wallet,digest(randomBytes(32)),p.id);target=fresh(p.id);}else{const id=randomUUID();db.prepare('INSERT INTO players(id,token,name,created,wallet) VALUES(?,?,?,?,?)').run(id,digest(randomBytes(32)),'Voyager '+entry.wallet.slice(-4).toUpperCase(),Date.now(),entry.wallet);target=fresh(id);}}
-        if(token)db.prepare('DELETE FROM sessions WHERE token=?').run(digest(token));
-        // Switching to an existing wallet loads its own inventory; balances never merge.
-        if(target.id!==p.id){const old=runs.get(p.id);if(old?.status==='active'){old.paused=true;old.input={};old.commands={};}}
-        issueSession(res,target.id);return json(res,200,state(target));
-      }
       if(req.method==='POST'&&url.pathname==='/api/auth/logout'){
         if(!safeSession(p)&&!runs.get(p.id)?.paused)return json(res,400,{error:'Pause your expedition before disconnecting.'});if(token)db.prepare('DELETE FROM sessions WHERE token=?').run(digest(token));const old=runs.get(p.id);if(old?.status==='active'){old.paused=true;old.input={};old.commands={};}cookie(res,'');return json(res,200,{ok:true});
       }
-      if(req.method==='POST'&&url.pathname==='/api/arrival/challenge'){
-        if(!p.wallet||!safeSession(p))return json(res,401,{error:'Sign in with your wallet in Hearthhall first.'});
-        if(p.checkin)return json(res,200,{recorded:p.checkin});
-        let entry=db.prepare('SELECT * FROM arrivals WHERE player=? AND expires>? AND tx IS NULL ORDER BY expires DESC LIMIT 1').get(p.id,Date.now());
-        if(!entry){entry=arrivalChallenge(p.wallet);db.prepare('INSERT INTO arrivals(nonce,player,wallet,data,expires) VALUES(?,?,?,?,?)').run(entry.nonce,p.id,entry.wallet,entry.data,entry.expires);}
-        return json(res,200,{nonce:entry.nonce,from:p.wallet,to:p.wallet,value:'0x0',data:entry.data,chainId:CHAIN.hex});
-      }
-      if(req.method==='POST'&&url.pathname==='/api/arrival/verify'){
-        if(!p.wallet||!safeSession(p))return json(res,401,{error:'Return to your signed-in safehouse profile.'});
-        if(!/^0x[0-9a-fA-F]{64}$/.test(b.hash||''))return json(res,400,{error:'Enter a valid transaction hash.'});
-        const entry=db.prepare('SELECT * FROM arrivals WHERE nonce=? AND player=?').get(String(b.nonce||''),p.id);if(!entry||entry.expires<Date.now())return json(res,400,{error:'This check-in request expired.'});
-        if(entry.tx)return json(res,200,{pending:false,hash:entry.tx,player:profile(fresh(p.id))});
-        const [chain,tx,receipt]=await Promise.all([rpc('eth_chainId'),rpc('eth_getTransactionByHash',[b.hash]),rpc('eth_getTransactionReceipt',[b.hash])]);
-        let result;try{result=checkArrival(entry,tx,receipt,chain);}catch(e){return json(res,400,{error:e.message});}
-        if(result.pending)return json(res,200,result);
-        db.exec('BEGIN IMMEDIATE');try{db.prepare('UPDATE arrivals SET tx=?,block=? WHERE nonce=? AND tx IS NULL').run(result.hash,result.block,entry.nonce);db.prepare('UPDATE players SET checkin=? WHERE id=?').run(result.hash,p.id);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
-        return json(res,200,{...result,player:profile(fresh(p.id))});
-      }
       if(req.method==='POST'&&url.pathname==='/api/profile'){
-        const name=String(b.name||'').trim();if(!/^[\p{L}\p{N} _-]{3,18}$/u.test(name))return json(res,400,{error:'Use 3â€“18 letters, numbers, spaces, dashes or underscores.'});
-        db.prepare('UPDATE players SET name=? WHERE id=?').run(name,p.id);return json(res,200,{player:profile({...p,name})});
+        const name=String(b.name||'').trim();if(!/^[\p{L}\p{N} _-]{3,18}$/u.test(name))return json(res,400,{error:'Use 3–18 letters, numbers, spaces, dashes or underscores.'});
+        db.prepare('UPDATE players SET name=?,username_created=1 WHERE id=?').run(name,p.id);return json(res,200,{player:profile({...p,name,username_created:1})});
       }
       if(req.method==='POST'&&url.pathname==='/api/start'){
+        if(!p.username_created)return json(res,400,{error:'Choose a username before starting your free adventure.'});
         let s=runs.get(p.id);if(!s||s.status!=='active'){s=createRun(randomUUID(),Date.now(),profile(p));runs.set(p.id,s);}s.inSafehouse=false;s.paused=false;return json(res,200,{run:snapshot(s)});
       }
       if(req.method==='POST'&&url.pathname==='/api/pause'){const s=runs.get(p.id);if(s?.status==='active'){s.paused=b.paused===true;s.input={};s.commands={};s.held={};s.player.vx=s.player.vy=0;s.lastInputAt=Date.now();}return json(res,200,{run:s?snapshot(s):null});}
@@ -164,13 +126,13 @@ const server=http.createServer(async(req,res)=>{
       return json(res,404,{error:'That route does not exist.'});
     }
     if(req.method!=='GET'&&req.method!=='HEAD')return json(res,405,{error:'Method not allowed.'});
-    const files={'/':'index.html','/index.html':'index.html','/style.css':'style.css','/app.js':'app.js','/game.js':'game.js','/world.js':'world.js','/combat.js':'combat.js','/catalog.js':'catalog.js','/wallet.js':'wallet.js','/scene3d.js':'scene3d.js','/icon.svg':'icon.svg','/vendor/three.module.js':'vendor/three.module.js','/vendor/three.core.min.js':'vendor/three.core.min.js','/vendor/THREE-LICENSE.txt':'vendor/THREE-LICENSE.txt'};
+    const files={'/':'index.html','/index.html':'index.html','/style.css':'style.css','/app.js':'app.js','/game.js':'game.js','/world.js':'world.js','/combat.js':'combat.js','/catalog.js':'catalog.js','/scene3d.js':'scene3d.js','/icon.svg':'icon.svg','/vendor/three.module.js':'vendor/three.module.js','/vendor/three.core.min.js':'vendor/three.core.min.js','/vendor/THREE-LICENSE.txt':'vendor/THREE-LICENSE.txt'};
     files['/vendor/BufferGeometryUtils.js']='vendor/BufferGeometryUtils.js';files['/adventure.js']='adventure.js';files['/movement-preview.js']='movement-preview.js';
     files['/motion.js']='motion.js';files['/realism.js']='realism.js';files['/vendor/HDRLoader.js']='vendor/HDRLoader.js';
     for(const file of ['cinematic.js','combat-presentation.js','audio.js','characters.js','heroes.js','hero-choice.js','storm-theme.css','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
     for(const name of ['actors','environment','lighting','harbour','quality','palette','assets','asset-cache'])files['/scene/'+name+'.js']='scene/'+name+'.js';
     files['/asset-manifest.js']='asset-manifest.js';
-    for(const name of ['config','state','input','movement','hitboxes','combat','rounds','ai','engine','client','view','fighters','environment','catalog','preview'])files['/arcade/'+name+'.js']='arcade/'+name+'.js';
+    for(const name of ['config','state','input','movement','hitboxes','combat','rounds','ai','engine','client','view','fighters','environment','catalog','preview','audio'])files['/arcade/'+name+'.js']='arcade/'+name+'.js';
     files['/arcade.html']='arcade.html';files['/arcade/style.css']='arcade/style.css';
     if(/^\/assets\/[a-z0-9_]+\.(jpg|png|hdr|glb)$/.test(url.pathname))files[url.pathname]=url.pathname.slice(1);
     const file=files[url.pathname];if(!file){res.writeHead(404);return res.end('Not found');}

@@ -5,6 +5,7 @@ export default async function handler(req,res){
  res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
  const send=(status,value)=>{res.statusCode=status;res.end(JSON.stringify(value));};
  const url=new URL(req.url,'http://localhost'),route=url.searchParams.get('route')||url.pathname.replace(/^\/api\//,'');
+ if(route.startsWith('arrival/')||['auth/challenge','auth/verify'].includes(route))return send(410,{error:'Wallet sign-in and onchain features have been removed. Choose a username to play free.'});
  if(!['GET','POST'].includes(req.method))return send(405,{error:'Method not allowed.'});
  if(req.method==='POST'&&req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)return send(403,{error:'Use the gameâ€™s own tab.'});
  let c;try{

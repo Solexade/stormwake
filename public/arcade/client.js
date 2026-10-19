@@ -1,9 +1,13 @@
+import {ArcadeAudio} from './audio.js';
 import {storedHero,chooseHero} from '../heroes.js';
 import {createHeroPreview} from './preview.js';
 import {HEROES,ARENAS,heroById,arenaById} from './catalog.js';
 import {createArena} from './view.js';
 const $=id=>document.getElementById(id),keyboard=new Set(),pointers=new Map(),commands=[];
 let room=null,view=null,viewPromise=null,busy=false,seq=0,lastSend=0,lastReply=0,low=false,lastMode='ai',lastDifficulty='normal',syncing=false,inputDirty=false;
+const arcadeAudio=new ArcadeAudio();
+$('arcadeSound').onclick=async()=>{if(arcadeAudio.enabled)arcadeAudio.mute();else await arcadeAudio.enable();$('arcadeSound').textContent=arcadeAudio.enabled?'Sound: on':'Sound: off';$('arcadeSound').setAttribute('aria-pressed',String(arcadeAudio.enabled));};
+$('arcadeVoice').onclick=()=>{arcadeAudio.voice=!arcadeAudio.voice;if(!arcadeAudio.voice)arcadeAudio.host.speechSynthesis?.cancel();$('arcadeVoice').textContent=arcadeAudio.voice?'Voice: on':'Voice: off';$('arcadeVoice').setAttribute('aria-pressed',String(arcadeAudio.voice));};
 let selectedHero=storedHero(),selectedArena='harbour';
 let heroPreview;try{heroPreview=createHeroPreview($('heroPreview'));}catch(e){$('heroPreview').hidden=true;console.warn('Character preview unavailable',e.message);}
 function selections(){
@@ -17,7 +21,7 @@ selections();
 const held=k=>keyboard.has(k)||[...pointers.values()].includes(k);
 async function api(route,b={}){const r=await fetch('/api/arcade/'+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b),signal:AbortSignal.timeout(8000)});const data=await r.json();if(!r.ok)throw Error(data.error||'Unable to reach the ring.');return data;}
 function clear(){inputDirty=true;keyboard.clear();pointers.clear();commands.length=0;document.querySelectorAll('.held').forEach(el=>el.classList.remove('held'));}
-function paint(){if(!room)return;const s=room.match;for(let i=0;i<2;i++){$('name'+i).textContent=heroById(s.heroes?.[i]).name+(room.seat===i?' · YOU':'');$('hp'+i).style.width=Math.max(0,s.fighters[i].hp)+'%';$('hp'+i).parentElement.setAttribute('aria-label',heroById(s.heroes?.[i]).name+' health '+s.fighters[i].hp);$('wins'+i).textContent='●'.repeat(s.fighters[i].wins)+'○'.repeat(2-s.fighters[i].wins);$('special'+i).textContent=s.fighters[i].specialCD?'Storm '+(s.fighters[i].specialCD/60).toFixed(1)+'s':'Storm ready';}
+function paint(){if(!room)return;const s=room.match;arcadeAudio.update(s,room.seat);for(let i=0;i<2;i++){$('name'+i).textContent=heroById(s.heroes?.[i]).name+(room.seat===i?' · YOU':'');$('hp'+i).style.width=Math.max(0,s.fighters[i].hp)+'%';$('hp'+i).parentElement.setAttribute('aria-label',heroById(s.heroes?.[i]).name+' health '+s.fighters[i].hp);$('wins'+i).textContent='●'.repeat(s.fighters[i].wins)+'○'.repeat(2-s.fighters[i].wins);$('special'+i).textContent=s.fighters[i].specialCD?'Storm '+(s.fighters[i].specialCD/60).toFixed(1)+'s':'Storm ready';}
  $('timer').textContent=Math.ceil(s.time/60);$('round').textContent='ROUND '+s.round;$('roomLabel').textContent=room.match.mode==='room'?'PRIVATE ROOM · '+room.code:arenaById(s.arena).name.toUpperCase()+' · '+lastDifficulty.toUpperCase();
  $('waiting').hidden=room.status!=='waiting';$('shareCode').textContent=room.code;
  $('announcement').textContent=room.status==='waiting'?'':s.phase==='countdown'?Math.ceil(s.phaseFrames/60)+' · READY':s.phase==='roundEnd'?(s.roundWinner===null?'DRAW · REPLAY ROUND':(s.fighters.some(f=>f.hp===0)?'KO · ':'TIME · ')+(s.roundWinner===room.seat?'ROUND WON':'ROUND LOST')):'';
@@ -25,7 +29,7 @@ function paint(){if(!room)return;const s=room.match;for(let i=0;i<2;i++){$('name
  const f=s.fighters[room.seat];$('combo').textContent=f.combo>1&&s.frame<f.comboUntil?f.combo+' HIT CHAIN':'';
  $('fight').dataset.phase=s.phase;$('fight').dataset.round=String(s.round);$('fight').dataset.playerX=f.x.toFixed(3);$('fight').dataset.opponentHp=String(s.fighters[1-room.seat].hp);
 }
-async function enter(data){room=data;seq=Math.max(seq,room.match.fighters[room.seat].seq+1);lastMode=room.match.mode;lastDifficulty=room.match.difficulty;clear();$('lobby').hidden=true;$('arena').hidden=false;document.body.classList.add('fighting');$('error').textContent='';
+async function enter(data){if(arcadeAudio.enabled)await arcadeAudio.enable();room=data;seq=Math.max(seq,room.match.fighters[room.seat].seq+1);lastMode=room.match.mode;lastDifficulty=room.match.difficulty;clear();$('lobby').hidden=true;$('arena').hidden=false;document.body.classList.add('fighting');$('error').textContent='';
  if(!viewPromise)viewPromise=createArena($('fight')).then(v=>view=v).catch(e=>{viewPromise=null;throw e;});
  try{await viewPromise;$('fight').focus({preventScroll:true});}catch(e){$('error').textContent='The 3D fighters could not load. Reload to retry. '+e.message;}paint();lastReply=performance.now();
 }
@@ -33,7 +37,7 @@ async function start(mode){if(busy)return;busy=true;try{lastDifficulty=$('diffic
 $('ai').onclick=()=>start('ai');$('create').onclick=()=>start('room');
 $('joinForm').onsubmit=async e=>{e.preventDefault();if(busy)return;busy=true;try{await enter(await api('join',{code:$('code').value,hero:selectedHero}));}catch(e){$('error').textContent=e.message;}finally{busy=false;}};
 $('resume').onclick=async()=>{try{const data=await api('resume');if(data.code)await enter(data);else $('resume').hidden=true;}catch(e){$('error').textContent=e.message;}};
-function menu(){clear();room=null;$('arena').hidden=true;$('lobby').hidden=false;$('resume').hidden=true;document.body.classList.remove('fighting');}
+function menu(){arcadeAudio.stop();clear();room=null;$('arena').hidden=true;$('lobby').hidden=false;$('resume').hidden=true;document.body.classList.remove('fighting');}
 $('leave').onclick=async()=>{if(!room||busy)return;busy=true;try{await api('leave',{code:room.code});menu();}catch(e){$('error').textContent=e.message;}finally{busy=false;}};
 $('menu').onclick=menu;$('replay').onclick=()=>{const mode=lastMode;menu();start(mode);};
 $('copy').onclick=async()=>{try{await navigator.clipboard.writeText(room.code);$('copy').textContent='Copied';}catch{$('error').textContent='Copy this room code: '+room.code;}};
@@ -46,7 +50,7 @@ for(const button of document.querySelectorAll('[data-key]')){
  button.addEventListener('pointerdown',e=>{e.preventDefault();if(!room||room.match.phase==='finished')return;button.setPointerCapture(e.pointerId);pointers.set(e.pointerId,button.dataset.key);button.classList.add('held');down(button.dataset.key);sync();});
  const release=e=>{pointers.delete(e.pointerId);if(![...pointers.values()].includes(button.dataset.key))button.classList.remove('held');inputDirty=true;sync();};button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);
 }
-window.addEventListener('blur',()=>{clear();sync();});document.addEventListener('visibilitychange',()=>{if(document.hidden){clear();sync();}});
+window.addEventListener('blur',()=>{clear();sync();});document.addEventListener('visibilitychange',()=>{if(document.hidden){arcadeAudio.stop();clear();sync();}else if(arcadeAudio.enabled)arcadeAudio.enable();});
 async function sync(){if(!room||busy||syncing||room.match.phase==='finished'||(!inputDirty&&performance.now()-lastSend<80))return;syncing=true;inputDirty=false;const activeCode=room.code;lastSend=performance.now();
  while(commands[0]&&lastSend-commands[0].at>1200)commands.shift();const command=commands.shift()||{};
  try{const data=await api('sync',{code:room.code,seq:++seq,axis:document.hidden?0:(held('d')?1:0)-(held('a')?1:0),crouch:held('s'),block:held('l'),jump:!!command.jump,attack:command.attack||null});if(!room||room.code!==activeCode)return;room=data;lastReply=performance.now();$('network').textContent='SERVER · '+Math.round(lastReply-lastSend)+' ms';$('error').textContent='';paint();}
