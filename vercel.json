@@ -9,12 +9,8 @@
   },
   "rewrites": [
     {
-      "source": "/",
-      "destination": "/arcade.html"
-    },
-    {
       "source": "/solo",
-      "destination": "/index.html"
+      "destination": "/solo.html"
     },
     {
       "source": "/api/:path*",
@@ -53,6 +49,11 @@
     },
     {
       "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/solo.html",
       "destination": "/solo",
       "permanent": true
     }
