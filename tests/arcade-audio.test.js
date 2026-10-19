@@ -8,3 +8,10 @@ test('Arcade audio deduplicates authoritative hits, skips history and muted even
  a.enabled=false;s.eventId=3;s.events.push({id:3,type:'block'});a.update(s,0);a.enabled=true;a.update(s,0);assert.equal(heard.length,1);
  a.host.document.hidden=true;s.eventId=4;s.events.push({id:4,type:'hit'});a.update(s,0);a.host.document.hidden=false;a.update(s,0);assert.equal(heard.length,1);
 });
+
+test('music toggle leaves SFX enabled and stop releases the loop',()=>{
+ const a=new ArcadeAudio({}),calls=[];a.enabled=true;
+ a.musicSource={stop:()=>calls.push('stop'),disconnect:()=>calls.push('source')};a.musicGain={disconnect:()=>calls.push('gain')};
+ a.setMusic(false);assert.equal(a.enabled,true);assert.equal(a.musicSource,null);assert.deepEqual(calls,['stop','source','gain']);
+ a.stopMusic();assert.equal(calls.length,3);
+});

@@ -7,6 +7,7 @@ const $=id=>document.getElementById(id),keyboard=new Set(),pointers=new Map(),co
 let room=null,view=null,viewPromise=null,busy=false,seq=0,lastSend=0,lastReply=0,low=false,lastMode='ai',lastDifficulty='normal',syncing=false,inputDirty=false;
 const arcadeAudio=new ArcadeAudio();
 $('arcadeSound').onclick=async()=>{if(arcadeAudio.enabled)arcadeAudio.mute();else await arcadeAudio.enable();$('arcadeSound').textContent=arcadeAudio.enabled?'Sound: on':'Sound: off';$('arcadeSound').setAttribute('aria-pressed',String(arcadeAudio.enabled));};
+$('arcadeMusic').onclick=()=>{arcadeAudio.setMusic(!arcadeAudio.music);$('arcadeMusic').textContent=arcadeAudio.music?'Music: on':'Music: off';$('arcadeMusic').setAttribute('aria-pressed',String(arcadeAudio.music));};
 $('arcadeVoice').onclick=()=>{arcadeAudio.voice=!arcadeAudio.voice;if(!arcadeAudio.voice)arcadeAudio.host.speechSynthesis?.cancel();$('arcadeVoice').textContent=arcadeAudio.voice?'Voice: on':'Voice: off';$('arcadeVoice').setAttribute('aria-pressed',String(arcadeAudio.voice));};
 let selectedHero=storedHero(),selectedArena='harbour';
 let heroPreview;try{heroPreview=createHeroPreview($('heroPreview'));}catch(e){$('heroPreview').hidden=true;console.warn('Character preview unavailable',e.message);}

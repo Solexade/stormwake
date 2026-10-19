@@ -19,3 +19,6 @@
 
 /* Keep combat and audio controls inside short mobile landscape viewports. */
 @media(max-height:540px) and (orientation:landscape){body.fighting{height:100dvh;overflow:hidden}body.fighting main{padding:4px max(8px,env(safe-area-inset-right)) 4px max(8px,env(safe-area-inset-left))}body.fighting #arena{height:calc(100dvh - 8px - env(safe-area-inset-bottom));display:grid;grid-template-rows:auto minmax(0,1fr) 58px;gap:5px}body.fighting .arena-bar{margin:0;padding:0;flex-wrap:nowrap;gap:4px;font-size:9px}body.fighting .arena-bar button{padding:6px;min-height:36px;font-size:10px}body.fighting #roomLabel{max-width:100px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}body.fighting #network{font-size:8px}body.fighting #stage{height:100%;min-height:0}body.fighting .touch{margin:0;gap:6px}body.fighting .touch button{min-width:44px;min-height:44px;padding:6px}body.fighting #error{display:none}}
+
+@media(max-width:700px){.arena-bar{flex-wrap:wrap}}
+@media(max-height:540px) and (orientation:landscape){body.fighting #roomLabel{max-width:65px}body.fighting #network{display:none}body.fighting .arena-bar button{padding:6px 5px}}
