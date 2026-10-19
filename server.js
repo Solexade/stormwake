@@ -133,7 +133,7 @@ const server=http.createServer(async(req,res)=>{
     for(const name of ['actors','environment','lighting','harbour','quality','palette','assets','asset-cache'])files['/scene/'+name+'.js']='scene/'+name+'.js';
     files['/asset-manifest.js']='asset-manifest.js';
     for(const name of ['config','state','input','movement','hitboxes','combat','rounds','ai','engine','client','view','fighters','environment','catalog','preview','audio'])files['/arcade/'+name+'.js']='arcade/'+name+'.js';
-    files['/arcade']='arcade.html';files['/arcade.html']='arcade.html';files['/arcade/style.css']='arcade/style.css';
+    files['/arcade']='arcade.html';files['/arcade.html']='arcade.html';files['/arcade/style.css']='arcade/style.css';files['/arcade/landing.css']='arcade/landing.css';
     if(/^\/assets\/[a-z0-9_]+\.(jpg|png|hdr|glb)$/.test(url.pathname))files[url.pathname]=url.pathname.slice(1);
     const file=files[url.pathname];if(!file){res.writeHead(404);return res.end('Not found');}
     const bytes=await readFile(path.join(ROOT,'public',file));const types={'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.hdr':'application/octet-stream','.glb':'model/gltf-binary'};
