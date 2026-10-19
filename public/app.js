@@ -134,4 +134,4 @@ async function showSave(){
 }
 
 // Explicit mode transition pauses an active Solo run; Arcade has its own page/input loop.
-$('arcadeLink').onclick=async event=>{event.preventDefault();try{await api('pause',{paused:true});location.assign('/arcade');}catch(e){toast('Could not pause Solo safely. '+e.message);}};
+$('arcadeLink').onclick=async event=>{event.preventDefault();try{await api('pause',{paused:true});location.assign('/');}catch(e){toast('Could not pause Solo safely. '+e.message);}};

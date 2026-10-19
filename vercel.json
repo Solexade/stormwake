@@ -9,8 +9,12 @@
   },
   "rewrites": [
     {
-      "source": "/arcade",
+      "source": "/",
       "destination": "/arcade.html"
+    },
+    {
+      "source": "/solo",
+      "destination": "/index.html"
     },
     {
       "source": "/api/:path*",
@@ -38,8 +42,18 @@
   ],
   "redirects": [
     {
+      "source": "/arcade",
+      "destination": "/",
+      "permanent": true
+    },
+    {
       "source": "/arcade.html",
-      "destination": "/arcade",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/index.html",
+      "destination": "/solo",
       "permanent": true
     }
   ]
