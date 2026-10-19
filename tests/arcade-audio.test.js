@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ArcadeAudio} from '../public/arcade/audio.js';
+import {ArcadeAudio,renderBattleChant} from '../public/arcade/audio.js';
 test('Arcade audio deduplicates authoritative hits, skips history and muted events',()=>{
  const a=new ArcadeAudio({document:{hidden:false}}),heard=[];a.enabled=true;a.impact=(...v)=>heard.push(v);a.say=()=>{};a.tone=()=>{};
  const s={id:'a',eventId:1,phase:'fight',events:[{id:1,type:'hit'}]};a.update(s,0);assert.equal(heard.length,0);
@@ -15,3 +15,10 @@ test('music toggle leaves SFX enabled and stop releases the loop',()=>{
  a.setMusic(false);assert.equal(a.enabled,true);assert.equal(a.musicSource,null);assert.deepEqual(calls,['stop','source','gain']);
  a.stopMusic();assert.equal(calls.length,3);
 });
+
+test('battle chant loop is deterministic, bounded, non-silent and seamless at edges',()=>{
+ const a=renderBattleChant(8000),b=renderBattleChant(8000);assert.equal(a.length,120000);assert.deepEqual(a,b);
+ let peak=0,energy=0;for(const x of a){assert.ok(Number.isFinite(x));peak=Math.max(peak,Math.abs(x));energy+=x*x;}
+ assert.ok(peak>.2&&peak<1);assert.ok(energy/a.length>.001);assert.equal(Math.abs(a[0]),0);assert.equal(Math.abs(a.at(-1)),0);
+});
+
