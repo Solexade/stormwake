@@ -1,3 +1,4 @@
+import {AUDIO_FILES} from '../public/audio-manifest.js';
 import {readFile,readdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
@@ -8,6 +9,10 @@ export async function validateAssets() {
     if(asset.url !== '/assets/'+name || !asset.license || !asset.source) throw Error(`Invalid asset provenance: ${name}`);
     const bytes=await readFile(new URL('../public'+asset.url,import.meta.url));
     if(bytes.length!==asset.bytes || createHash('sha256').update(bytes).digest('hex')!==asset.sha256) throw Error(`Asset hash mismatch: ${name}`);
+  }
+  for (const asset of Object.values(AUDIO_FILES)) {
+    const bytes=await readFile(new URL('../public'+asset.url,import.meta.url));
+    if(asset.license!=='CC0-1.0'||!asset.source||bytes.length!==asset.bytes||createHash('sha256').update(bytes).digest('hex')!==asset.sha256) throw Error('Invalid audio asset: '+asset.url);
   }
   async function imports(directory) {
     for(const entry of await readdir(directory,{withFileTypes:true})) {

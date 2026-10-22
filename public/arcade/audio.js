@@ -1,28 +1,13 @@
-// Original synthesized impacts; browser-local speech when available. No downloaded audio.
+import {SampleMixer} from '../sample-mixer.js';
+// Licensed local recordings; synthesized impact fallback and installed announcer voice.
 export class ArcadeAudio {
- constructor(host=globalThis) { this.host=host; this.enabled=false; this.voice=true; this.music=true; this.last=0; this.match=null; this.phase=null; }
- async enable() {
-  try { const Context=this.host.AudioContext||this.host.webkitAudioContext;
-   if(!Context)return false;
-   this.ctx??=new Context(); await this.ctx.resume(); this.enabled=true; this.startMusic(); return true;
-  } catch { this.enabled=false; return false; }
- }
- stop() { this.stopMusic(); this.host.speechSynthesis?.cancel(); this.ctx?.suspend(); }
- mute() { this.enabled=false; this.stop(); }
- // Original 128 BPM hybrid percussion and synthesized vowel-chant ensemble.
- startMusic() {
-  if(!this.music||!this.enabled||!this.ctx||this.musicSource||this.host.document?.hidden)return;
-  const c=this.ctx;
-  if(!this.musicBuffer){
-   const samples=renderBattleChant(c.sampleRate);
-   const buffer=c.createBuffer(1,samples.length,c.sampleRate);buffer.getChannelData(0).set(samples);
-   this.musicBuffer=buffer;
-  }
-  const source=c.createBufferSource(),gain=c.createGain();source.buffer=this.musicBuffer;source.loop=true;
-  gain.gain.value=.30;source.connect(gain);gain.connect(c.destination);source.start();this.musicSource=source;this.musicGain=gain;
- }
- stopMusic(){if(this.musicSource){this.musicSource.stop();this.musicSource.disconnect();this.musicGain.disconnect();this.musicSource=null;this.musicGain=null;}}
- setMusic(value){this.music=value;if(value)this.startMusic();else this.stopMusic();}
+ constructor(host=globalThis) { this.host=host; this.mixer=new SampleMixer(host); this.enabled=false; this.voice=true; this.music=true; this.last=0; this.match=null; this.phase=null; }
+ async enable() {const ok=await this.mixer.enable();this.ctx=this.mixer.ctx;this.enabled=ok;if(ok)this.startMusic();return ok;}
+ stop(){this.mixer.setScene('combat',false);this.host.speechSynthesis?.cancel();}
+ mute(){this.enabled=false;this.mixer.mute();this.host.speechSynthesis?.cancel();}
+ startMusic(){this.mixer.setMusic(this.music);this.mixer.setScene('combat',true);}
+ stopMusic(){this.mixer.setMusic(false);}
+ setMusic(value){this.music=value;this.mixer.setMusic(value);}
  say(text) {
   if(!this.enabled||!this.voice||this.host.document?.hidden)return;
   const synth=this.host.speechSynthesis, Utterance=this.host.SpeechSynthesisUtterance;
@@ -30,14 +15,14 @@ export class ArcadeAudio {
   // Use an installed voice only; never request network speech services.
   const voice=synth.getVoices().find(v=>v.localService&&/^en/i.test(v.lang));
   if(!voice)return;
-  synth.cancel();const line=new Utterance(text);line.voice=voice;line.rate=.95;line.pitch=.8;line.volume=.65;synth.speak(line);
+  synth.cancel();const line=new Utterance(text);line.voice=voice;line.rate=.95;line.pitch=.8;line.volume=.65*this.mixer.levels.sfx;synth.speak(line);
  }
  tone(freq,end,duration,volume,type='sine') {
   if(!this.enabled||!this.ctx||this.ctx.state!=='running'||this.host.document?.hidden)return;
   const c=this.ctx,t=c.currentTime,o=c.createOscillator(),g=c.createGain();
   o.type=type;o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(end,t+duration);
   g.gain.setValueAtTime(.001,t);g.gain.linearRampToValueAtTime(volume,t+.005);g.gain.exponentialRampToValueAtTime(.001,t+duration);
-  o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+duration+.02);o.onended=()=>{o.disconnect();g.disconnect();};
+  o.connect(g);g.connect(this.mixer.buses?.sfx||c.destination);o.start(t);o.stop(t+duration+.02);o.onended=()=>{o.disconnect();g.disconnect();};
  }
  burst(block=false) {
   if(!this.enabled||!this.ctx||this.ctx.state!=='running'||this.host.document?.hidden)return;
@@ -45,9 +30,10 @@ export class ArcadeAudio {
   for(let i=0;i<data.length;i++){const t=i/c.sampleRate;data[i]=(Math.random()*2-1)*Math.exp(-t/(block?.035:.022));}
   const source=c.createBufferSource(),filter=c.createBiquadFilter(),gain=c.createGain();
   source.buffer=buffer;filter.type='bandpass';filter.frequency.value=block?2600:950;filter.Q.value=block?2:.7;gain.gain.value=block?.13:.18;
-  source.connect(filter);filter.connect(gain);gain.connect(c.destination);source.start();source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};
+  source.connect(filter);filter.connect(gain);gain.connect(this.mixer.buses?.sfx||c.destination);source.start();source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};
  }
  impact(block=false,combo=1) {
+  if(this.mixer.play(block?'metal':'hit1',{volume:.65})){if(!block)this.mixer.play('bass',{volume:.3});this.mixer.duck();if(combo>=3)this.say('Unbroken!');return;}
   this.burst(block);
   if(block){this.tone(1450,980,.16,.07,'triangle');this.tone(2317,1700,.10,.035,'sine');}
   else {this.tone(170,42,.19,.26,'sine');this.tone(320,80,.06,.04,'triangle');}

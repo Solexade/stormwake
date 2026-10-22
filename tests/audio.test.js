@@ -1,14 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {SampleMixer,cleanLevels} from '../public/sample-mixer.js';
 import {AdventureAudio} from '../public/audio.js';
-test('music toggle preserves footsteps and hidden tabs suspend playback',()=>{
- const a=new AdventureAudio(),notes=[],effects=[];a.enabled=true;
- a.ctx={currentTime:1,state:'running',suspend(){this.state='suspended';}};
- a.note=(...n)=>notes.push(n);a.noise=(...n)=>effects.push(n);
- a.update({vx:310,vy:0},true,false,false);
- assert.ok(notes.length>0);assert.equal(effects.length,1);
- a.music=false;a.ctx.currentTime=2;const count=notes.length;
- a.update({vx:310,vy:0},true,false,false);
- assert.equal(notes.length,count);assert.equal(effects.length,2);
- a.update(null,false,false,true);assert.equal(a.ctx.state,'suspended');
-});
+function fixture(){const nodes=[],memory=new Map();class Context{constructor(){this.state='suspended';this.currentTime=10;this.destination={};}resume(){this.state='running';return Promise.resolve();}suspend(){this.state='suspended';return Promise.resolve();}createGain(){const gain={value:1,setTargetAtTime(v){this.value=v;},setValueAtTime(v){this.value=v;},linearRampToValueAtTime(v){this.value=v;},cancelScheduledValues(){}};return {gain,connect(){},disconnect(){}};}createBufferSource(){const n={playbackRate:{value:1},connect(){},disconnect(){},start(){this.started=true;},stop(){this.stopped=true;this.onended?.();}};nodes.push(n);return n;}decodeAudioData(){return Promise.resolve({duration:5});}}
+ const host={AudioContext:Context,document:{hidden:false},localStorage:{getItem:k=>memory.get(k),setItem:(k,v)=>memory.set(k,v)},fetch:async()=>({ok:true,arrayBuffer:async()=>new ArrayBuffer(8)})};return {host,nodes};}
+test('mix levels clamp, reject non-finite input and persist independently',async()=>{assert.deepEqual(cleanLevels({music:2,sfx:-1,ambience:NaN}),{music:1,sfx:0,ambience:.28});const {host}=fixture(),m=new SampleMixer(host);m.setLevel('sfx',0);assert.equal(new SampleMixer(host).levels.sfx,0);assert.equal(m.levels.music,.34);});
+test('no loading before gesture; async loads cannot play after mute; resume retains loops',async()=>{const {host,nodes}=fixture(),m=new SampleMixer(host);assert.equal(nodes.length,0);await m.enable();m.setScene('explore',true);await m.loadAll();assert.equal(m.loops.size,3);const source=m.loops.get('explore').s;m.setScene('combat',true);assert.equal(m.loops.get('explore').s,source);assert.equal(m.loops.get('explore').target,0);assert.equal(m.loops.get('combat').target,.65);m.mute();await m.loadAll();assert.equal(m.ctx.state,'suspended');assert.equal(m.play('metal'),false);await m.enable();m.setScene('explore',true);assert.equal(m.loops.get('explore').s,source);});
+test('hidden and paused audio cannot produce effects; voice cap and music ducking are bounded',async()=>{const {host}=fixture(),m=new SampleMixer(host);await m.enable();m.setScene('combat',true);await m.loadAll();for(let i=0;i<30;i++)m.play('metal');assert.equal(m.shots.size,16);m.duck();assert.equal(m.duckUntil,10.4);host.document.hidden=true;assert.equal(m.play('metal'),false);m.setScene('combat',false);assert.equal(m.ctx.state,'suspended');assert.equal(m.shots.size,0);});
+test('failed asset is cached and does not reject gameplay audio enable',async()=>{const {host}=fixture();host.fetch=async()=>{throw Error('offline');};const m=new SampleMixer(host);assert.equal(await m.enable(),true);await m.loadAll();assert.ok(m.failed.size>0);assert.equal(m.play('metal'),false);});
+test('Solo warning cues follow new authoritative windups, not initial snapshots',()=>{const a=new AdventureAudio(),heard=[];a.mixer={enabled:true,ctx:{currentTime:1},setScene(){},play:(...x)=>heard.push(x),duck(){}};const p={x:0,y:0,weapon:'sword'},e={id:1,x:50,y:0,hp:10,type:'raider',wind:.4};a.update(p,true,false,false,{enemies:[e]});assert.equal(heard.length,0);e.wind=0;a.update(p,true,false,false,{enemies:[e]});e.wind=.48;a.update(p,true,false,false,{enemies:[e]});assert.equal(heard[0][0],'warning');a.update(p,true,false,false,{enemies:[e]});assert.equal(heard.length,1);});

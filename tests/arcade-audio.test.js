@@ -9,11 +9,10 @@ test('Arcade audio deduplicates authoritative hits, skips history and muted even
  a.host.document.hidden=true;s.eventId=4;s.events.push({id:4,type:'hit'});a.update(s,0);a.host.document.hidden=false;a.update(s,0);assert.equal(heard.length,1);
 });
 
-test('music toggle leaves SFX enabled and stop releases the loop',()=>{
+test('music toggle leaves SFX enabled and stop suspends sampled audio',()=>{
  const a=new ArcadeAudio({}),calls=[];a.enabled=true;
- a.musicSource={stop:()=>calls.push('stop'),disconnect:()=>calls.push('source')};a.musicGain={disconnect:()=>calls.push('gain')};
- a.setMusic(false);assert.equal(a.enabled,true);assert.equal(a.musicSource,null);assert.deepEqual(calls,['stop','source','gain']);
- a.stopMusic();assert.equal(calls.length,3);
+ a.mixer.setMusic=v=>calls.push(['music',v]);a.mixer.setScene=(...v)=>calls.push(v);
+ a.setMusic(false);assert.equal(a.enabled,true);a.stop();assert.deepEqual(calls,[['music',false],['combat',false]]);
 });
 
 test('battle chant loop is deterministic, bounded, non-silent and seamless at edges',()=>{

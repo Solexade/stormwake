@@ -131,14 +131,15 @@ const server=http.createServer(async(req,res)=>{
     const files={'/':'arcade.html','/solo':'solo.html','/index.html':'index.html','/style.css':'style.css','/app.js':'app.js','/game.js':'game.js','/world.js':'world.js','/combat.js':'combat.js','/catalog.js':'catalog.js','/scene3d.js':'scene3d.js','/icon.svg':'icon.svg','/vendor/three.module.js':'vendor/three.module.js','/vendor/three.core.min.js':'vendor/three.core.min.js','/vendor/THREE-LICENSE.txt':'vendor/THREE-LICENSE.txt'};
     files['/vendor/BufferGeometryUtils.js']='vendor/BufferGeometryUtils.js';files['/adventure.js']='adventure.js';files['/movement-preview.js']='movement-preview.js';
     files['/motion.js']='motion.js';files['/realism.js']='realism.js';files['/vendor/HDRLoader.js']='vendor/HDRLoader.js';
-    for(const file of ['cinematic.js','combat-presentation.js','audio.js','characters.js','heroes.js','hero-choice.js','storm-theme.css','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
+    for(const file of ['sample-mixer.js','audio-manifest.js','audio-controls.js','audio-controls.css','audio-credits.html','cinematic.js','combat-presentation.js','audio.js','characters.js','heroes.js','hero-choice.js','storm-theme.css','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
     for(const name of ['actors','environment','lighting','harbour','quality','palette','assets','asset-cache'])files['/scene/'+name+'.js']='scene/'+name+'.js';
     files['/asset-manifest.js']='asset-manifest.js';
     for(const name of ['config','state','input','movement','hitboxes','combat','rounds','ai','engine','client','view','fighters','environment','catalog','preview','audio'])files['/arcade/'+name+'.js']='arcade/'+name+'.js';
     files['/arcade']='arcade.html';files['/arcade.html']='arcade.html';files['/arcade/style.css']='arcade/style.css';files['/arcade/landing.css']='arcade/landing.css';
     if(/^\/assets\/[a-z0-9_]+\.(jpg|png|hdr|glb)$/.test(url.pathname))files[url.pathname]=url.pathname.slice(1);
+    if(/^\/audio\/[a-z0-9_]+\.mp3$/.test(url.pathname))files[url.pathname]=url.pathname.slice(1);
     const file=files[url.pathname];if(!file){res.writeHead(404);return res.end('Not found');}
-    const bytes=await readFile(path.join(ROOT,'public',file));const types={'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.hdr':'application/octet-stream','.glb':'model/gltf-binary'};
+    const bytes=await readFile(path.join(ROOT,'public',file));const types={'.mp3':'audio/mpeg','.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.hdr':'application/octet-stream','.glb':'model/gltf-binary'};
     res.writeHead(200,{'Content-Type':types[path.extname(file)],'Cache-Control':'no-cache','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob:; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});res.end(req.method==='HEAD'?undefined:bytes);
   }catch(e){console.error(e.message);if(!res.headersSent)json(res,400,{error:'The request could not be completed. Please try again.'});else res.end();}
 });

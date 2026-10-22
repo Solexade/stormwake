@@ -1,17 +1,24 @@
-// Original procedural score and effects: no external recordings or paid assets.
+import {SampleMixer} from './sample-mixer.js';
 export class AdventureAudio {
- constructor(){this.enabled=false;this.music=true;this.beat=0;this.next=0;this.foot=0;}
- async enable(){this.ctx??=new AudioContext();await this.ctx.resume();this.enabled=true;this.next=this.ctx.currentTime;}
- note(freq,time,duration,volume=.03,type='sine',bus){const c=this.ctx;if(!c)return;const o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(freq,time);g.gain.setValueAtTime(0,time);g.gain.linearRampToValueAtTime(volume,time+.025);g.gain.exponentialRampToValueAtTime(.0001,time+duration);o.connect(g);g.connect(bus||c.destination);o.start(time);o.stop(time+duration+.03);o.onended=()=>{o.disconnect();g.disconnect();};}
- noise(duration=.12,volume=.03,cutoff=700){if(!this.enabled||!this.ctx)return;const c=this.ctx,b=c.createBuffer(1,Math.ceil(c.sampleRate*duration),c.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length)**2;const s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=b;f.type='lowpass';f.frequency.value=cutoff;g.gain.value=volume;s.connect(f);f.connect(g);g.connect(c.destination);s.start();s.onended=()=>{s.disconnect();f.disconnect();g.disconnect();};}
- effect(kind){if(!this.enabled)return;const now=this.ctx.currentTime;if(['swing','dodge'].includes(kind))this.noise(.18,.035,2200);if(['strike','hurt','parry'].includes(kind)){this.noise(.12,.065,kind==='parry'?5500:900);this.note(kind==='parry'?1100:75,now,.18,.045,'triangle');}if(['chest','relic','boss-defeated'].includes(kind))[293.66,369.99,440,587.33].forEach((f,i)=>this.note(f,now+i*.1,.65,.035,'triangle'));if(kind==='storm'){this.noise(.6,.08,500);this.note(49,now,.7,.05);}}
- update(p,active,boss,hidden){if(!this.ctx)return;if(!this.enabled||hidden){if(this.ctx.state==='running')this.ctx.suspend();return;}if(this.ctx.state!=='running'){this.ctx.resume().catch(()=>{});this.next=this.ctx.currentTime;}
- const now=this.ctx.currentTime; if(p&&active){const speed=Math.hypot(p.vx||0,p.vy||0);if(speed>20&&now>this.foot){this.noise(.065,.023,450);this.foot=now+(p.sprinting?.24:.34);}}
- if(!this.music||!active){this.next=now;return;}
- // D minor / Bb / F / C: sparse plucked melody, bass drone and battle pulse.
- const roots=[146.83,116.54,174.61,130.81],melody=[0,7,12,3,7,15,12,7,0,3,7,10,7,3,2,7];
- if(this.next<now-.2)this.next=now;
- while(this.next<now+.12){const root=roots[Math.floor(this.beat/8)%4],step=melody[this.beat%16];this.note(root*2**(step/12),this.next,.65,.018,'triangle');if(this.beat%4===0)this.note(root/2,this.next,2,.026);if(boss&&this.beat%2===0)this.note(55,this.next,.2,.04,'triangle');this.beat++;this.next+=boss?.24:.36;}
-
+ constructor(host=globalThis){this.mixer=new SampleMixer(host);this.foot=0;this.winds=new Map();this.nextThunder=25;this.weapon='axe';}
+ get enabled(){return this.mixer.enabled;}set enabled(v){if(!v)this.mixer.mute();else this.mixer.enabled=true;}
+ get music(){return this.mixer.music;}set music(v){this.mixer.setMusic(v);}
+ get ctx(){return this.mixer.ctx;}
+ async enable(){return this.mixer.enable();}
+ effect(kind,event={}){const m=this.mixer,w=this.weapon,heavy=event.attack==='heavy'||event.attack==='finisher';
+  if(kind==='swing'||kind==='dodge')m.play(w==='spear'?'swing2':'swing1',{rate:w==='sword'?1.13:w==='axe'?.83:1,volume:.45});
+  if(['strike','hurt','finisher'].includes(kind)){m.play(w==='axe'?'chop':w==='spear'?'hit2':'hit1',{volume:heavy?.85:.58,rate:heavy?.78:1});m.play('bass',{volume:heavy?.48:.22,rate:.8});m.duck();}
+  if(kind==='block'||kind==='parry'){m.play('metal',{volume:.7,rate:kind==='parry'?1.15:.9});m.duck();}
+  if(['chest','relic','boss-defeated','upgrade','combo-ready'].includes(kind))m.play('reward',{volume:.7});
+  if(kind==='kill')m.play('defeat',{rate:event.enemy==='boss'?.75:1,volume:.45});
+  if(['boss-awake','boss-slam'].includes(kind)){m.play('warning',{volume:.7,rate:.85});m.duck();}
+  if(kind==='storm')m.play('thunder',{volume:.65});
+ }
+ update(p,active,boss,hidden,run){const m=this.mixer;this.weapon=p?.weapon||'axe';const threats=(run?.enemies||[]).concat(run?.boss?.awake?[run.boss]:[]);const nearby=threats.some(e=>e.hp>0&&p&&Math.hypot(e.x-p.x,e.y-p.y)<360);m.setScene(boss||nearby?'combat':'explore',active&&!hidden);
+  const now=m.ctx?.currentTime||0;if(active&&!hidden&&m.enabled){if(p&&Math.hypot(p.vx||0,p.vy||0)>20&&now>this.foot){m.play(now%2<1?'foot1':'foot2',{volume:.20});this.foot=now+(p.sprinting?.24:.34);}
+   if(now>this.nextThunder){m.play('thunder',{bus:'ambience',volume:.18,rate:.85});this.nextThunder=now+35;}
+   for(const e of threats){const prev=this.winds.get(e.id);if(e.type!=='boss'&&prev!==undefined&&e.wind>prev+.1&&e.hp>0&&p&&Math.hypot(e.x-p.x,e.y-p.y)<450){m.play('warning',{rate:e.type==='brute'?.8:e.type==='archer'?1.2:1,volume:.45});m.duck();}}
+  }
+  this.winds=new Map(threats.map(e=>[e.id,e.wind]));
  }
 }
