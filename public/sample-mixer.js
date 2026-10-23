@@ -24,8 +24,8 @@ export class SampleMixer {
    const loop=this.loops.get(key);if(!loop)continue;const target=key==='ocean'?.45:this.music&&key===this.mode?.65:0;if(loop.target!==target){loop.g.gain.setTargetAtTime(target,this.ctx.currentTime,.7);loop.target=target;}}
  }
  duck(){if(!this.ctx)return;const t=this.ctx.currentTime;this.duckUntil=t+.4;const g=this.ducker.gain;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(.30,t+.025);g.setTargetAtTime(1,t+.35,.28);}
- play(key,{volume=.55,rate=1,bus='sfx',vary=true}={}){if(!this.enabled||!this.active||!this.ctx||this.ctx.state!=='running'||this.host.document?.hidden||!this.buffers.has(key))return false;
-  if(this.shots.size>=16)return true;const c=this.ctx,s=c.createBufferSource(),g=c.createGain();s.buffer=this.buffers.get(key);s.playbackRate.value=rate*(vary?.96+(this.variant++%5)*.02:1);g.gain.value=volume;s.connect(g);g.connect(this.buses[bus]);this.shots.add(s);s.onended=()=>{this.shots.delete(s);s.disconnect();g.disconnect();};s.start();return true;
+ play(key,{volume=.55,rate=1,bus='sfx',vary=true,lowpass=0,duration=0}={}){if(!this.enabled||!this.active||!this.ctx||this.ctx.state!=='running'||this.host.document?.hidden||!this.buffers.has(key))return false;
+  if(this.shots.size>=16)return true;const c=this.ctx,s=c.createBufferSource(),g=c.createGain();s.buffer=this.buffers.get(key);s.playbackRate.value=rate*(vary?.96+(this.variant++%5)*.02:1);g.gain.value=volume;let filter;if(lowpass){filter=c.createBiquadFilter();filter.type='lowpass';filter.frequency.value=lowpass;s.connect(filter);filter.connect(g);}else s.connect(g);g.connect(this.buses[bus]);this.shots.add(s);s.onended=()=>{this.shots.delete(s);s.disconnect();filter?.disconnect();g.disconnect();};if(duration){const end=c.currentTime+duration;g.gain.setValueAtTime(volume,Math.max(c.currentTime,end-.035));g.gain.linearRampToValueAtTime(0,end);s.start(0,0,duration);}else s.start();return true;
  }
  suspend(){if(!this.ctx)return;for(const s of this.shots){try{s.stop();}catch{}}this.shots.clear();if(this.ctx.state==='running')void this.ctx.suspend().catch(()=>{});}
  mute(){this.enabled=false;this.suspend();}

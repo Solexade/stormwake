@@ -1,3 +1,4 @@
+import {bindMovementPad,arcadeStrike} from '../mobile-controls.js';
 import {installMixerDialog} from '../audio-controls.js';
 import {ArcadeAudio} from './audio.js';
 import {storedHero,chooseHero} from '../heroes.js';
@@ -22,15 +23,17 @@ function selections(){
  $('selectionSummary').textContent=heroById(selectedHero).name+' / '+arenaById(selectedArena).name;
 }
 selections();
+let padAxis=0,padCrouch=false;
+const resetPad=bindMovementPad($('arcadeStick'),v=>{padAxis=v.axis;padCrouch=v.crouch;if(v.jump)down('w');inputDirty=true;queueMicrotask(sync);});
 const held=k=>keyboard.has(k)||[...pointers.values()].includes(k);
 async function api(route,b={}){const r=await fetch('/api/arcade/'+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b),signal:AbortSignal.timeout(8000)});const data=await r.json();if(!r.ok)throw Error(data.error||'Unable to reach the ring.');return data;}
-function clear(){inputDirty=true;keyboard.clear();pointers.clear();commands.length=0;document.querySelectorAll('.held').forEach(el=>el.classList.remove('held'));}
+function clear(){padAxis=0;padCrouch=false;resetPad();inputDirty=true;keyboard.clear();pointers.clear();commands.length=0;document.querySelectorAll('.held').forEach(el=>el.classList.remove('held'));}
 function paint(){if(!room)return;const s=room.match;if(arcadeAudio.enabled)arcadeAudio.mixer.setScene(s.phase==='finished'?'explore':'combat',true);arcadeAudio.update(s,room.seat);for(let i=0;i<2;i++){$('name'+i).textContent=heroById(s.heroes?.[i]).name+(room.seat===i?' · YOU':'');$('hp'+i).style.width=Math.max(0,s.fighters[i].hp)+'%';$('hp'+i).parentElement.setAttribute('aria-label',heroById(s.heroes?.[i]).name+' health '+s.fighters[i].hp);$('wins'+i).textContent='●'.repeat(s.fighters[i].wins)+'○'.repeat(2-s.fighters[i].wins);$('special'+i).textContent=s.fighters[i].specialCD?'Storm '+(s.fighters[i].specialCD/60).toFixed(1)+'s':'Storm ready';}
  $('timer').textContent=Math.ceil(s.time/60);$('round').textContent='ROUND '+s.round;$('roomLabel').textContent=room.match.mode==='room'?'PRIVATE ROOM · '+room.code:arenaById(s.arena).name.toUpperCase()+' · '+lastDifficulty.toUpperCase();
  $('waiting').hidden=room.status!=='waiting';$('shareCode').textContent=room.code;
  $('announcement').textContent=room.status==='waiting'?'':s.phase==='countdown'?Math.ceil(s.phaseFrames/60)+' · READY':s.phase==='roundEnd'?(s.roundWinner===null?'DRAW · REPLAY ROUND':(s.fighters.some(f=>f.hp===0)?'KO · ':'TIME · ')+(s.roundWinner===room.seat?'ROUND WON':'ROUND LOST')):'';
  $('result').hidden=s.phase!=='finished';if(s.phase==='finished'){$('network').textContent='MATCH RECORDED';$('outcome').textContent=s.winner===null?'An unbroken stalemate.':s.winner===room.seat?'Your oath holds.':'Rise with the next tide.';$('summary').textContent=(s.winner===null?'DRAW':s.winner===room.seat?'VICTORY':'DEFEAT')+' · '+s.fighters[0].wins+' — '+s.fighters[1].wins+(room.reason?' · '+room.reason:'');clear();}
- const f=s.fighters[room.seat];$('combo').textContent=f.combo>1&&s.frame<f.comboUntil?f.combo+' HIT CHAIN':'';
+ const f=s.fighters[room.seat];$('smartStrike').textContent=held('l')?'Counter':arcadeStrike(f).label;$('smartStrike').setAttribute('aria-label',$('smartStrike').textContent);$('smartGuard').textContent=f.blockStun?'Hold guard':'Guard';$('moveCue').textContent=f.move?f.move.toUpperCase():f.combo>1&&s.frame<f.comboUntil?'CHAIN OPEN':'STRIKE → BACKHAND → BREAKER';$('combo').textContent=f.combo>1&&s.frame<f.comboUntil?f.combo+' HIT CHAIN':'';
  $('fight').dataset.phase=s.phase;$('fight').dataset.round=String(s.round);$('fight').dataset.playerX=f.x.toFixed(3);$('fight').dataset.opponentHp=String(s.fighters[1-room.seat].hp);
 }
 async function enter(data){if(arcadeAudio.enabled)await arcadeAudio.enable();room=data;seq=Math.max(seq,room.match.fighters[room.seat].seq+1);lastMode=room.match.mode;lastDifficulty=room.match.difficulty;clear();$('lobby').hidden=true;$('arena').hidden=false;document.body.classList.add('fighting');$('error').textContent='';
@@ -46,8 +49,10 @@ $('leave').onclick=async()=>{if(!room||busy)return;busy=true;try{await api('leav
 $('menu').onclick=menu;$('replay').onclick=()=>{const mode=lastMode;menu();start(mode);};
 $('copy').onclick=async()=>{try{await navigator.clipboard.writeText(room.code);$('copy').textContent='Copied';}catch{$('error').textContent='Copy this room code: '+room.code;}};
 $('quality').onclick=()=>{low=!low;view?.quality(low);$('quality').textContent=low?'Performance':'High detail';};
-function down(k){if(!room||room.match.phase==='finished')return;if(['j','k','u','w'].includes(k))commands.push({at:performance.now(),...(k==='w'?{jump:true}:{attack:{j:'light',k:'heavy',u:'special'}[k]})});if(commands.length>2)commands.shift();inputDirty=true;}
-const keys=new Set(['a','d','w','s','j','k','l','u']);
+function down(k,counter=false){if(!room||room.match.phase==='finished')return;if(['j','k','u','w','i','o'].includes(k))commands.push({at:performance.now(),counter,...(k==='w'?{jump:true}:{attack:{j:'light',k:'heavy',u:'special',i:'punch',o:'kick'}[k]})});if(commands.length>2)commands.shift();inputDirty=true;}
+$('smartStrike').onpointerdown=e=>{e.preventDefault();if(!room)return;$('smartStrike').setPointerCapture(e.pointerId);const counter=held('l');down(counter?'k':arcadeStrike(room.match.fighters[room.seat]).key,counter);sync();};
+$('smartStrike').onclick=e=>{if(e.detail===0&&room){down(arcadeStrike(room.match.fighters[room.seat]).key);sync();}};
+const keys=new Set(['a','d','w','s','j','k','l','u','i','o']);
 window.addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(!room||!keys.has(k))return;e.preventDefault();if(!keyboard.has(k)){keyboard.add(k);down(k);sync();}});
 window.addEventListener('keyup',e=>{const k=e.key.toLowerCase();if(room&&keys.has(k)){e.preventDefault();keyboard.delete(k);inputDirty=true;sync();}});
 for(const button of document.querySelectorAll('[data-key]')){
@@ -57,7 +62,7 @@ for(const button of document.querySelectorAll('[data-key]')){
 window.addEventListener('blur',()=>{clear();sync();});document.addEventListener('visibilitychange',()=>{if(document.hidden){arcadeAudio.stop();clear();sync();}else if(arcadeAudio.enabled&&room)arcadeAudio.enable();});
 async function sync(){if(!room||busy||syncing||room.match.phase==='finished'||(!inputDirty&&performance.now()-lastSend<80))return;syncing=true;inputDirty=false;const activeCode=room.code;lastSend=performance.now();
  while(commands[0]&&lastSend-commands[0].at>1200)commands.shift();const command=commands.shift()||{};
- try{const data=await api('sync',{code:room.code,seq:++seq,axis:document.hidden?0:(held('d')?1:0)-(held('a')?1:0),crouch:held('s'),block:held('l'),jump:!!command.jump,attack:command.attack||null});if(!room||room.code!==activeCode)return;room=data;lastReply=performance.now();$('network').textContent='SERVER · '+Math.round(lastReply-lastSend)+' ms';$('error').textContent='';paint();}
+ try{const data=await api('sync',{code:room.code,seq:++seq,axis:document.hidden?0:Math.sign((held('d')?1:0)-(held('a')?1:0)+padAxis),crouch:held('s')||padCrouch,block:held('l')&&!command.counter,jump:!!command.jump,attack:command.attack||null});if(!room||room.code!==activeCode)return;room=data;lastReply=performance.now();$('network').textContent='SERVER · '+Math.round(lastReply-lastSend)+' ms';$('error').textContent='';paint();}
  catch(e){clear();inputDirty=false;$('network').textContent='RECONNECTING';$('error').textContent=e.message+' Inputs stop during interruption. A 20-second disconnect forfeits the duel.';}
  finally{syncing=false;if(inputDirty||commands.length)queueMicrotask(sync);}
 }
@@ -87,3 +92,8 @@ $('usernameForm').onsubmit = async event => {
  } catch(error) { $('usernameStatus').textContent = error.message; }
  finally { $('saveUsername').disabled = false; }
 };
+
+let bloodOn=true;try{bloodOn=localStorage.getItem('stormwake.arcade.blood')!=='off';}catch{}
+const bloodButton=$('bloodToggle');
+function bloodLabel(){bloodButton.textContent=bloodOn?'Blood: on':'Blood: off';bloodButton.setAttribute('aria-pressed',String(bloodOn));}
+bloodLabel();bloodButton.onclick=()=>{bloodOn=!bloodOn;try{localStorage.setItem('stormwake.arcade.blood',bloodOn?'on':'off');}catch{}view?.blood(bloodOn);bloodLabel();};

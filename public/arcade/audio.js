@@ -32,12 +32,15 @@ export class ArcadeAudio {
   source.buffer=buffer;filter.type='bandpass';filter.frequency.value=block?2600:950;filter.Q.value=block?2:.7;gain.gain.value=block?.13:.18;
   source.connect(filter);filter.connect(gain);gain.connect(this.mixer.buses?.sfx||c.destination);source.start();source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};
  }
- impact(block=false,combo=1) {
-  if(this.mixer.play(block?'metal':'hit1',{volume:.65})){if(!block)this.mixer.play('bass',{volume:.3});this.mixer.duck();if(combo>=3)this.say('Unbroken!');return;}
-  this.burst(block);
-  if(block){this.tone(1450,980,.16,.07,'triangle');this.tone(2317,1700,.10,.035,'sine');}
-  else {this.tone(170,42,.19,.26,'sine');this.tone(320,80,.06,.04,'triangle');}
-  if(combo>=3)this.say('Unbroken!');
+ impact(block=false,combo=1,attack='light') {
+  const body=['punch','kick','sweep','aerial'].includes(attack);
+  // Punch recording for flesh/contact; reserve metallic transients for weapons.
+  const key=block?(body?'hit2':'metal'):'bass';
+  const heavy=['kick','heavy','special'].includes(attack);
+  const played=this.mixer.play(key,{volume:block?.4:heavy?.65:.5,rate:attack==='punch'?1.08:attack==='kick'?.9:1,lowpass:block?3200:body?1800:2200,duration:block?.16:heavy?.22:.15});
+  if(!played)this.burst(block&&!body);
+  if(played&&!block&&!body)this.mixer.play('chop',{volume:attack==='special'?.2:.12,rate:heavy?.95:1.12,lowpass:2800,duration:.075});
+  if(heavy&&!block)this.mixer.duck();
  }
  update(s,seat) {
   if(this.match!==s.id){this.match=s.id;this.last=s.eventId||0;this.phase=s.phase;if(s.phase==='countdown')this.say('Round '+s.round+'. Prepare.');return;}
@@ -45,7 +48,7 @@ export class ArcadeAudio {
   if(this.enabled&&!this.host.document?.hidden){
    // Collapse delayed packets to one impact, avoiding a burst of old sounds.
    const hit=fresh.filter(e=>e.type==='hit'||e.type==='block').at(-1);
-   if(hit)this.impact(hit.type==='block',hit.combo||1);
+   if(hit)this.impact(hit.type==='block',hit.combo||1,hit.attack||'light');
    const finish=fresh.find(e=>e.type==='finished');
    if(finish){this.tone(220,440,.5,.12,'triangle');this.say(finish.winner===null?'A worthy draw.':finish.winner===seat?'Victory! Your oath holds.':'Defeat. Rise with the next tide.');}
    else if(fresh.some(e=>e.type==='ko'))this.say('Knockout!');

@@ -47,3 +47,9 @@ test('early attack survives idle packets and starts on recovery, then expires',(
  const s=fight(),f=s.fighters[0];f.cooldown=4;input(s,0,{attack:'heavy'});input(s,0,{axis:0});frames(s,4);assert.equal(f.move,'heavy');
  const t=fight();t.fighters[0].cooldown=20;input(t,0,{attack:'heavy'});frames(t,25);assert.equal(t.fighters[0].move,null);
 });
+test('AI rotates rivals across matches even after rate-limit window expires',async()=>{
+ const db=new DatabaseSync(':memory:');try{const store=sqliteRooms(db),player={id:'rotation',name:'Rotation'};let now=100000;const rivals=[];
+ for(let i=0;i<3;i++){const r=await arcadeRequest(store,player,'create',{mode:'ai',hero:'azure'},'POST',now);rivals.push(r.match.heroes[1]);await arcadeRequest(store,player,'leave',{code:r.code},'POST',now+1);now+=70000;}
+ assert.equal(new Set(rivals).size,3);assert.ok(!rivals.includes('azure'));
+ }finally{db.close();}
+});
