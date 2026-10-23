@@ -19,7 +19,7 @@ test('Arcade animation root motion cannot displace fighter horizontally',()=>{
 
 import {HEROES,heroById,heroMaterial} from '../public/heroes.js';
 test('shared hero contract provides Solo hand sockets and in-place locomotion sources',()=>{
- assert.deepEqual(HEROES.map(h=>h.id),['azure','hood']);assert.equal(heroById('old-save').id,'azure');
+ assert.deepEqual(HEROES.map(h=>h.id),['azure','frost','ash','hood']);assert.equal(heroById('old-save').id,'azure');
  for(const hero of HEROES){const b=readFileSync(new URL('../public/assets/'+hero.asset,import.meta.url));const gltf=JSON.parse(b.subarray(20,20+b.readUInt32LE(12)));
  const names=gltf.nodes.map(n=>(n.name||'').replaceAll(':',''));
  for(const socket of ['mixamorigSpine','mixamorigRightHand','mixamorigLeftHand'])assert.ok(names.includes(socket),hero.id+' '+socket);

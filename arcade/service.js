@@ -1,4 +1,4 @@
-import {heroById,arenaById} from '../public/arcade/catalog.js';
+import {HEROES,heroById,arenaById} from '../public/arcade/catalog.js';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {createMatch,step,acceptInput} from '../public/arcade/engine.js';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
@@ -19,10 +19,15 @@ export async function arcadeRequest(store,player,route,b={},method='POST',now=Da
  if(route==='create'){
   if(b.mode!==undefined&&!['ai','room'].includes(b.mode))fail('Choose AI or room mode.');
   const existing=await store.find(player.id,now);if(existing)return view(existing,player.id);
-  if(await store.recentCount(player.id,now)>=5)fail('Please wait a minute before creating another match.',429);
+  const recent=await store.recentCount(player.id,now);
+  if(recent>=5)fail('Please wait a minute before creating another match.',429);
   const mode=b.mode==='room'?'room':'ai',id=code(),difficulty=['easy','normal','hard'].includes(b.difficulty)?b.difficulty:'normal';
   const room={code:id,members:[player.id,null],labels:[player.name,mode==='ai'?'The Oathbreaker':'Waiting for challenger'],status:mode==='ai'?'playing':'waiting',seen:[now,now],updated:now,remainder:0,expires:now+3600000,match:createMatch(randomUUID(),mode,difficulty)};
-  room.match.arena=arenaById(b.arena).id;room.match.heroes=[heroById(b.hero).id,heroById(b.opponent||'hood').id];
+  const hero=heroById(b.hero).id,candidates=HEROES.filter(h=>h.id!==hero);
+  const previous=await store.lastOpponent?.(player.id);
+  const next=(candidates.findIndex(h=>h.id===previous)+1)%candidates.length;
+  const opponent=b.opponent?heroById(b.opponent).id:candidates[next].id;
+  room.match.arena=arenaById(b.arena).id;room.match.heroes=[hero,opponent];
   await store.insert(room);return view(room,player.id);
  }
  const id=String(b.code||'').trim().toUpperCase();if(!/^[A-F0-9]{10}$/.test(id))fail('Enter the 10-character room code.');
@@ -47,6 +52,7 @@ export async function arcadeRequest(store,player,route,b={},method='POST',now=Da
  });
 }
 export function postgresRooms(c){return {
+ async lastOpponent(player){const r=await c.query('SELECT doc FROM stormwake_arcade_rooms WHERE p1=$1 ORDER BY expires DESC LIMIT 20',[player]);return r.rows.map(x=>x.doc).find(x=>x.match.mode==='ai')?.match.heroes?.[1];},
  async recentCount(player,now){return Number((await c.query('SELECT COUNT(*) AS n FROM stormwake_arcade_rooms WHERE p1=$1 AND expires>$2',[player,now+3540000])).rows[0].n);},
  async find(player,now){const r=await c.query('SELECT doc FROM stormwake_arcade_rooms WHERE (p1=$1 OR p2=$1) AND expires>$2 ORDER BY expires DESC LIMIT 20',[player,now]);return r.rows.map(x=>x.doc).find(x=>x.match.phase!=='finished')||null;},
  async insert(r){await c.query('INSERT INTO stormwake_arcade_rooms(code,p1,p2,expires,doc) VALUES($1,$2,$3,$4,$5)',[r.code,r.members[0],r.members[1],r.expires,JSON.stringify(r)]);},
@@ -55,6 +61,7 @@ export function postgresRooms(c){return {
 export function sqliteRooms(db){
  db.exec('CREATE TABLE IF NOT EXISTS arcade_rooms(code TEXT PRIMARY KEY,p1 TEXT NOT NULL,p2 TEXT,expires INTEGER NOT NULL,doc TEXT NOT NULL)');
  return {
+ async lastOpponent(player){return db.prepare('SELECT doc FROM arcade_rooms WHERE p1=? ORDER BY expires DESC LIMIT 20').all(player).map(x=>JSON.parse(x.doc)).find(x=>x.match.mode==='ai')?.match.heroes?.[1];},
  async recentCount(player,now){return db.prepare('SELECT COUNT(*) AS n FROM arcade_rooms WHERE p1=? AND expires>?').get(player,now+3540000).n;},
  async find(player,now){return db.prepare('SELECT doc FROM arcade_rooms WHERE (p1=? OR p2=?) AND expires>? ORDER BY expires DESC LIMIT 20').all(player,player,now).map(x=>JSON.parse(x.doc)).find(x=>x.match.phase!=='finished')||null;},
  async insert(r){db.prepare('INSERT INTO arcade_rooms VALUES(?,?,?,?,?)').run(r.code,r.members[0],r.members[1],r.expires,JSON.stringify(r));},

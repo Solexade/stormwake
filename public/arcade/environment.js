@@ -13,7 +13,7 @@ export function dressArena(renderer,scene,stone,canvas) {
  }).catch(()=>{canvas.dataset.arenaMaterials='fallback';});
  new HDRLoader().loadAsync('/assets/furry_clouds_1k.hdr').then(texture=>{
   const generator=new T.PMREMGenerator(renderer),env=generator.fromEquirectangular(texture);
-  scene.environment=env.texture;scene.environmentIntensity=.45;generator.dispose();texture.dispose();
+  scene.background=texture;scene.backgroundBlurriness=.06;scene.backgroundIntensity=.55;texture.mapping=T.EquirectangularReflectionMapping;scene.environment=env.texture;scene.environmentIntensity=.45;generator.dispose();
  }).catch(()=>{});
  // Existing licensed rock scans dress the ring; collision coordinates stay unchanged.
  loadGLB('boulder_01.glb').then(source=>{
