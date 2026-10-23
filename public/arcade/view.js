@@ -8,21 +8,21 @@ export async function createArena(canvas){
  const film=cinematicPass(renderer);let performanceMode=false;
  const scene=new T.Scene();scene.background=new T.Color('#10172e');scene.fog=new T.FogExp2('#10172e',.035);
  const camera=new T.PerspectiveCamera(44,1,.1,80);camera.position.set(6,1.9,13);camera.lookAt(6,1.1,0);
- scene.add(new T.HemisphereLight('#b7dae5','#25333c',2));
- const key=new T.DirectionalLight('#ffe1b1',3);key.position.set(2,8,5);key.castShadow=true;key.shadow.mapSize.setScalar(matchMedia('(pointer:coarse)').matches?1024:2048);key.shadow.camera.left=-10;key.shadow.camera.right=10;key.shadow.camera.top=8;key.shadow.camera.bottom=-8;key.shadow.normalBias=.02;key.shadow.bias=-.0001;key.shadow.radius=3;scene.add(key);
- const rim=new T.DirectionalLight('#b092f2',2);rim.position.set(8,4,-5);scene.add(rim);
+ scene.add(new T.HemisphereLight('#d1e0e3','#343c39',1.35));
+ const key=new T.DirectionalLight('#f0e7d4',2.15);key.position.set(2,8,5);key.castShadow=true;key.shadow.mapSize.setScalar(matchMedia('(pointer:coarse)').matches?1024:2048);key.shadow.camera.left=-10;key.shadow.camera.right=10;key.shadow.camera.top=8;key.shadow.camera.bottom=-8;key.shadow.normalBias=.02;key.shadow.bias=-.0001;key.shadow.radius=3;scene.add(key);
+ const rim=new T.DirectionalLight('#b6ced6',.85);rim.position.set(8,4,-5);scene.add(rim);
  const stone=new T.MeshStandardMaterial({color:'#394c54',roughness:.94}),iron=new T.MeshStandardMaterial({color:'#43505b',roughness:.5,metalness:.6});
  const add=(g,m,x,y,z)=>{const o=new T.Mesh(g,m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;scene.add(o);return o;};
  add(new T.BoxGeometry(15,.5,6),stone,6,-.3,0);
 
  for(const x of [-.8,12.8]){add(new T.CylinderGeometry(.35,.55,3,8),stone,x,1,-2);add(new T.TorusGeometry(.6,.06,8,32),iron,x,2.4,-2);const light=new T.PointLight(x<0?'#ffd393':'#be85ed',10,8,2);light.position.set(x,2,0);scene.add(light);add(new T.OctahedronGeometry(.23),new T.MeshStandardMaterial({color:x<0?'#ffbb70':'#be85ed',emissive:x<0?'#ff9a35':'#9559d6',emissiveIntensity:2}),x,2.2,-2);}
- for(let i=0;i<12;i++)add(new T.BoxGeometry(.2,1.1,.2),iron,i*1.2,-.05,-2.6);
+ for(let i=0;i<7;i++)add(new T.BoxGeometry(.2,1.1,.2),iron,i*2.3,-.05,-2.6);
  add(new T.BoxGeometry(15,.12,.14),iron,6,.5,-2.6);
  const sea=add(new T.PlaneGeometry(90,90,48,48),new T.MeshStandardMaterial({color:'#173e4c',roughness:.22,metalness:0}),6,-.7,-12);sea.rotation.x=-Math.PI/2;
  const seaBase=Float32Array.from(sea.geometry.attributes.position.array);
  let bloodEnabled=true;try{bloodEnabled=localStorage.getItem('stormwake.arcade.blood')!=='off';}catch{}
  const blood=new T.InstancedMesh(new T.SphereGeometry(.025,5,4),new T.MeshBasicMaterial({color:'#76151d',transparent:true,opacity:.9,depthWrite:false}),24);blood.count=0;blood.frustumCulled=false;scene.add(blood);const drop=new T.Object3D();let bloodAge=1,bloodX=0,bloodY=1,bloodDirection=1,bloodStrength=1;
- const ring=add(new T.TorusGeometry(2,.025,6,64),new T.MeshBasicMaterial({color:'#7ba2a0'}),6,.015,0);ring.rotation.x=-Math.PI/2;
+ const ring=add(new T.TorusGeometry(2,.015,6,64),new T.MeshBasicMaterial({color:'#58716c'}),6,.015,0);ring.rotation.x=-Math.PI/2;
  const scenery=dressArena(renderer,scene,stone,canvas);
  let actors=await Promise.all([createFighter(scene,0,'azure'),createFighter(scene,1,'hood')]);
  let selectionVersion=0;
