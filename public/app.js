@@ -37,7 +37,23 @@ const chapterNames=['The Breach','The Occupied Reach','The Fracture Gate'];
 let introSeen=false;
 function chapterBoard(){const unlocked=Math.min(3,(profile?.wins||0)+1);document.querySelectorAll('[data-chapter]').forEach(card=>{const n=Number(card.dataset.chapter);card.classList.toggle('chapter-current',n===unlocked);card.querySelector('small').textContent=(n<unlocked||(profile?.wins||0)>=3)?'CLEARED':n===unlocked?'NEXT DEPLOYMENT':'LOCKED · CLEAR PREVIOUS CHAPTER';});}
 async function launchStory(){if(!profile?.usernameCreated){showUsername(true);return;}if(introSeen||run?.status==='active'){begin();return;}await prologue();introSeen=true;begin();}
-function prologue(){return new Promise(resolve=>{const frames=[['Before the fracture','The Heartbeat held the Shattered Isles together. Our heroes guarded a world of timber, iron and tides.'],['Something crossed the storm','Rogue machines arrived from an age that had not happened yet. They came to steal the Heartbeat before their own future could be written.'],['The harbour fell first','Scouts marked the shore. Siege machines followed. The survivors called for the Awakened.'],['We hold the line','Recover the relic. Break the harbour siege. Follow the machines inland—and close the fracture.']];let i=0;const finish=()=>{clearTimeout(timer);$('storyIntro').close();resolve();};const show=()=>{const f=frames[i];$('storyCount').textContent='PROLOGUE / '+(i+1)+' OF 4';$('storyTitle').textContent=f[0];$('storyText').textContent=f[1];$('storyIntro').dataset.frame=i;$('storyNext').textContent=i===3?'Enter the chapter →':'Continue →';};let timer;const advance=()=>{clearTimeout(timer);if(i===3){finish();return;}i++;show();timer=setTimeout(advance,6500);};$('storyNext').onclick=advance;$('storySkip').onclick=finish;$('storyIntro').oncancel=e=>{e.preventDefault();finish();};$('storyIntro').showModal();show();if(!matchMedia('(prefers-reduced-motion: reduce)').matches)timer=setTimeout(advance,6500);});}
+function prologue(){return new Promise(resolve=>{
+ const frames=[['Before the fracture','The Heartbeat held the Shattered Isles together. Our heroes guarded a world of timber, iron and tides.'],['Something crossed the storm','Rogue machines arrived from an age that had not happened yet. They came to steal the Heartbeat before their own future could be written.'],['The harbour fell first','Scouts marked the shore. Siege machines followed. The survivors called for the Awakened.'],['We hold the line','Recover the relic. Break the harbour siege. Follow the machines inland—and close the fracture.']];
+ const supported='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
+ let i=0,voiced=false;
+ try{voiced=supported&&localStorage.getItem('stormwake-narration')==='on';}catch{}
+ const stop=()=>{if(supported)window.speechSynthesis.cancel();};
+ const speak=()=>{stop();if(!voiced||document.hidden)return;const utterance=new SpeechSynthesisUtterance(frames[i].join('. '));utterance.lang='en-US';utterance.rate=.9;utterance.pitch=.85;utterance.volume=.85;const voices=window.speechSynthesis.getVoices();const voice=voices.find(v=>v.localService&&/^en/i.test(v.lang))||voices.find(v=>/^en/i.test(v.lang));if(voice)utterance.voice=voice;utterance.onerror=e=>{if(!['canceled','interrupted'].includes(e.error))$('storyVoiceStatus').textContent='Voice unavailable on this device. Read the captions and continue.';};window.speechSynthesis.speak(utterance);};
+ const voiceLabel=()=>{$('storyVoice').textContent=supported?(voiced?'Narration: on':'Enable narration'):'Narration unavailable';$('storyVoice').disabled=!supported;$('storyVoice').setAttribute('aria-pressed',String(voiced));};
+ const show=()=>{const f=frames[i];$('storyCount').textContent='PROLOGUE / '+(i+1)+' OF 4';$('storyTitle').textContent=f[0];$('storyText').textContent=f[1];$('storyIntro').dataset.frame=i;$('storyNext').textContent=i===3?'Finish prologue →':'Continue →';$('storyVoiceStatus').textContent='Device voice · captions stay visible · advance when ready';speak();};
+ const visibility=()=>{if(document.hidden)stop();};
+ const finish=()=>{stop();document.removeEventListener('visibilitychange',visibility);$('storyIntro').close();resolve();};
+ $('storyVoice').onclick=()=>{voiced=!voiced;try{localStorage.setItem('stormwake-narration',voiced?'on':'off');}catch{}voiceLabel();speak();};
+ $('storyNext').onclick=()=>{if(i===3)finish();else{i++;show();}};
+ $('storySkip').onclick=finish;$('storyIntro').oncancel=e=>{e.preventDefault();finish();};
+ document.addEventListener('visibilitychange',visibility);$('storyIntro').showModal();voiceLabel();show();
+});}
+
 $('startBtn').onclick=launchStory;
 $('watchPrologue').onclick=()=>prologue();
 $('chapterDeploy').onclick=launchStory;

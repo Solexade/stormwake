@@ -90,3 +90,9 @@ button,a,summary,select{touch-action:manipulation}
 .solo-trial .boss-bar{background:linear-gradient(120deg,#30263fec,#1b2439ed);border-color:#bca9d85c;color:#f1e7fa}
 .solo-trial .boss-bar small{color:#d1c3df}
 .solo-trial .playbar button:hover,.solo-trial .game-tools button:hover{border-color:#d5e1f3a6;background:#40516d}
+/* Native option menus need explicit colours, not the select's gradient. */
+.solo-trial select{color-scheme:dark;background-color:#24334c;color:#f5f7fc}
+.solo-trial select option,.solo-trial select optgroup{background-color:#24334c;color:#f5f7fc}
+.solo-trial select option:checked{background-color:#c8d6ee;color:#15233c}
+.story-copy>div{flex-wrap:wrap}.story-copy #storyVoice[aria-pressed="true"]{background:#d6e1f3;color:#17243b;border-color:#ecf2fc}
+@media(max-width:700px){.story-copy>div{gap:8px}.story-intro button{padding:10px 12px;font-size:12px}.story-copy{bottom:5%}}
