@@ -16,7 +16,7 @@ export function createEnvironment(renderer,scene,canvas,sky){
    if(kind==='stone'){g.strokeStyle='#202b2533';for(let i=0;i<25;i++){g.beginPath();g.moveTo(r()*256,r()*256);g.lineTo(r()*256,r()*256);g.stroke();}}
    const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return t;
  }
- const grassTex=texture('grass'),stoneTex=texture('stone'),woodTex=texture('wood'),leatherTex=texture('leather');grassTex.repeat.set(.7,.7);
+ const grassTex=texture('stone'),stoneTex=texture('stone'),woodTex=texture('wood'),leatherTex=texture('leather');grassTex.repeat.set(.7,.7);
  const mats={
   ground:new THREE.MeshStandardMaterial({map:grassTex,bumpMap:grassTex,bumpScale:.025,roughness:1}),
   stone:new THREE.MeshStandardMaterial({map:stoneTex,bumpMap:stoneTex,bumpScale:.13,roughness:.94,color:'#aaa99e'}),
@@ -69,8 +69,11 @@ export function createEnvironment(renderer,scene,canvas,sky){
  // Weathered bridges: decking, posts and sagging rope rails.
  for(const b of BRIDGES){const vertical=b.h>b.w,steps=Math.floor((vertical?b.h:b.w)/11);for(let i=0;i<steps;i++){const x=(b.x+(vertical?b.w/2:i*11+5))*S,z=(b.y+(vertical?i*11+5:b.h/2))*S;box(i%3?mats.wood:mats.darkwood,x,.18,z,(vertical?b.w:10)*S,.16,(vertical?10:b.h)*S);}
   const corners=[[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.h],[b.x+b.w,b.y+b.h]];corners.forEach(([x,z])=>cylinder(mats.darkwood,x*S,.6,z*S,.085,.11,1.5));const rails=vertical?[[corners[0],corners[2]],[corners[1],corners[3]]]:[[corners[0],corners[1]],[corners[2],corners[3]]];for(const [a,b] of rails){const points=[];for(let i=0;i<9;i++){const f=i/8;points.push(new THREE.Vector3((a[0]+(b[0]-a[0])*f)*S,1-.22*Math.sin(Math.PI*f),(a[1]+(b[1]-a[1])*f)*S));}mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),16,.033,5,false),mats.leather);}}
+ const cityWall=new THREE.MeshStandardMaterial({color:0x526572,roughness:.88,metalness:.08});
  const buildings=[];
- function cottage(x,z,scale=1,angle=0){const group=new THREE.Group();group.position.set(x*S,0,z*S);group.rotation.y=angle;group.scale.setScalar(scale);scene.add(group);box(mats.stone,0,.2,0,3,.4,2.4,group);box(mats.darkwood,0,1,0,2.7,1.8,2.1,group);
+ function cottage(x,z,scale=1,angle=0){const group=new THREE.Group();group.position.set(x*S,0,z*S);group.rotation.y=angle;group.scale.setScalar(scale);scene.add(group);box(cityWall,0,2.1,0,2.7,4.2,2.1,group);box(mats.metal,0,4.25,0,2.9,.14,2.3,group);for(let row=0;row<4;row++)for(const side of [-1,1])box(mats.glow,side*.75,.65+row*.85,1.06,.5,.42,.025,group);box(mats.metal,0,.65,1.09,.6,1.3,.05,group);batchStatic(group);buildings.push({group,materials:[],opacity:1});}
+
+ function timberHouse(x,z,scale=1,angle=0){const group=new THREE.Group();group.position.set(x*S,0,z*S);group.rotation.y=angle;group.scale.setScalar(scale);scene.add(group);box(mats.stone,0,.2,0,3,.4,2.4,group);box(mats.darkwood,0,1,0,2.7,1.8,2.1,group);
   for(let j=0;j<8;j++)box(mats.wood,0,.36+j*.21,1.08,2.8,.14,.09,group);
   for(const side of [-1,1]){const roof=box(mats.darkwood,side*.77,2.18,0,1.85,.16,2.85,group);roof.rotation.z=side*-.58;for(let j=0;j<11;j++){const tile=box(mats.wood,side*.78,2.21,(j-5)*.25,1.87,.035,.21,group);tile.rotation.z=side*-.58;}box(mats.wood,side*1.29,1,1.16,.12,2,.14,group);}
   beam(new THREE.Vector3(-1.5,1.79,1.5),new THREE.Vector3(0,2.75,1.5),.06,mats.gold,group);beam(new THREE.Vector3(0,2.75,1.5),new THREE.Vector3(1.5,1.79,1.5),.06,mats.gold,group);
@@ -78,7 +81,7 @@ export function createEnvironment(renderer,scene,canvas,sky){
   dressCottage(group,{box,mats});
   const copies=new Map();group.traverse(n=>{if(n.isMesh){if(!copies.has(n.material)){const copy=n.material.clone();copy.onBeforeCompile=n.material.onBeforeCompile;copy.customProgramCacheKey=n.material.customProgramCacheKey;copies.set(n.material,copy);}n.material=copies.get(n.material);}});batchStatic(group);buildings.push({group,materials:[...copies.entries()],opacity:1});
  }
- cottage(420,1240,1.05,-.15);cottage(660,1390,.95,.1);cottage(760,1580,.75,.35);
+ timberHouse(420,1240,1.05,-.15);cottage(660,1390,.95,.1);timberHouse(760,1580,.75,.35);
  // Harbour jetty.
  for(let i=0;i<22;i++)box(mats.wood,(315+i*10)*S,.13,1445*S,.23,.14,1.25);
  for(const x of [330,430,520])for(const z of [1423,1467])cylinder(mats.darkwood,x*S,-.18,z*S,.11,.14,1.8);
@@ -86,10 +89,16 @@ export function createEnvironment(renderer,scene,canvas,sky){
   const sailgeo=new THREE.PlaneGeometry(2.8,2.8,14,14);const a=sailgeo.attributes.position;for(let i=0;i<a.count;i++){const x=a.getX(i),y=a.getY(i);a.setZ(i,Math.sin((x/2.8+.5)*Math.PI)*.4+Math.sin(y*1.8)*.08);}sailgeo.computeVertexNormals();const sailmat=new THREE.MeshStandardMaterial({color:'#c9baa0',roughness:1,side:THREE.DoubleSide});const sail=mesh(sailgeo,sailmat,0,2.5,.1,g);for(const x of [-.7,.7]){const stripe=box(mats.cloth,x,2.5,.47,.25,2.7,.02,g);stripe.castShadow=false;}beam(new THREE.Vector3(0,4.3,0),new THREE.Vector3(0,.8,2.4),.024,mats.leather,g);beam(new THREE.Vector3(0,4.3,0),new THREE.Vector3(0,.8,-2.4),.024,mats.leather,g);return g;
  }
  const boat=longboat();
+ for(let i=0;i<16;i++){const x=-18+i*5.5,z=-18,h=7+(i*7%13);box(cityWall,x,h/2,z,3,h,3);for(let y=1;y<h;y+=1.4)box(mats.glow,x,y,z+1.51,1.7,.12,.02);}
+
+ // Fishing moorings on the water side of the jetty; no collision or rewards.
+ for(const x of [340,410,490]){const z=1490; cylinder(mats.darkwood,x*S,-.05,z*S,.07,.09,1.15);const buoy=ball(mats.wood,x*S+.22,-.35,z*S+.3,.13,.18,.13);buoy.castShadow=false;
+ const rope=mesh(new THREE.TorusGeometry(.18,.025,4,12),mats.leather,x*S,.34,z*S);rope.rotation.x=-Math.PI/2;rope.castShadow=false;}
+
  const foliage=[];
  // Spruce silhouettes are layered, irregular and shaded with real lighting.
  const needles=needleMaterial(),branchCard=new THREE.PlaneGeometry(1,1);
- for(let i=0;i<105;i++){const x=250+random()*1990,z=300+random()*1330;if(!landAt(x-35,z)||!landAt(x+35,z)||!landAt(x,z-40))continue;if([HOME,SHRINE,BOSS,{x:580,y:720}].some(p=>Math.hypot(p.x-x,p.y-z)<190))continue;if(z>1120&&x<870)continue;if(paths.some(p=>p.some(([a,b])=>Math.hypot(a-x,b-z)<95)))continue;if(x>1600&&z<890)continue;
+ for(let i=0;i<105;i++){const x=i===0?700:i===1?1210:250+random()*1990,z=i===0?1520:i===1?1040:300+random()*1330;if(!landAt(x-35,z)||!landAt(x+35,z)||!landAt(x,z-40))continue;if([HOME,SHRINE,BOSS,{x:580,y:720}].some(p=>Math.hypot(p.x-x,p.y-z)<190))continue;if(i>1&&z>1120&&x<870)continue;if(paths.some(p=>p.some(([a,b])=>Math.hypot(a-x,b-z)<95)))continue;if(x>1600&&z<890)continue;
   const h=3.8+random()*2.5;cylinder(mats.darkwood,x*S,h*.48,z*S,.025,.14,h*.96,scene,9);
   const crown=new THREE.Group();crown.position.set(x*S,0,z*S);scene.add(crown);
   for(let j=0;j<9;j++){const y=h*(.22+j*.081),length=h*.25*(1-j/10);for(let k=0;k<5;k++){
@@ -121,8 +130,18 @@ export function createEnvironment(renderer,scene,canvas,sky){
  const beacon=new THREE.Group();beacon.position.set(850*S,0,1450*S);scene.add(beacon);cylinder(mats.stone,0,1,0,.35,.65,2,beacon);cylinder(mats.metal,0,2.1,0,.5,.3,.25,beacon);const beaconFlame=mesh(new THREE.OctahedronGeometry(.32),mats.fire,0,2.5,0,beacon);const beaconLight=new THREE.PointLight('#ffbe63',0,12,2);beaconLight.position.set(0,2.7,0);beacon.add(beaconLight);
  const flames=[];for(const [x,z] of [[480,1320],[710,1250],[845,1110],[1000,950],[1310,825],[1560,850],[1690,735]]){cylinder(mats.darkwood,x*S,.6,z*S,.055,.09,1.2);const f=mesh(new THREE.OctahedronGeometry(.1),mats.fire,x*S,1.25,z*S);flames.push(f);}
  // Ocean surface: animated vertex waves and physically suggestive Fresnel highlights.
- const waterMaterial=new THREE.ShaderMaterial({uniforms:{time:{value:0}},vertexShader:`uniform float time; varying vec3 vP; varying vec3 vN; void main(){vec3 p=position;float w=sin(p.x*.65+time*.7)*.10+sin(p.y*.95-time*.8)*.075+sin((p.x+p.y)*1.8+time)*.025;p.z+=w;vec4 world=modelMatrix*vec4(p,1.);vP=world.xyz;vN=normalize(vec3(-cos(p.x*.65+time*.7)*.065,1.,-cos(p.y*.95-time*.8)*.071));gl_Position=projectionMatrix*viewMatrix*world;}`,fragmentShader:`uniform float time; varying vec3 vP; varying vec3 vN; void main(){vec3 eye=normalize(cameraPosition-vP);float fres=pow(1.-max(dot(eye,normalize(vN)),0.),3.);float streak=pow(max(dot(reflect(normalize(vec3(-.5,-1.,-.3)),normalize(vN)),eye),0.),80.);vec3 c=mix(vec3(.055,.20,.23),vec3(.38,.53,.55),fres*.75)+vec3(.75,.62,.39)*streak*.7;float foam=sin(vP.x*4.+time)*sin(vP.z*3.-time*.5);c+=max(foam-.87,0.)*.16;gl_FragColor=vec4(c,1.);
-#include <tonemapping_fragment>\n#include <colorspace_fragment>}`,side:THREE.DoubleSide});
+ const waterMaterial=new THREE.ShaderMaterial({uniforms:{time:{value:0}},vertexShader:`uniform float time; varying vec3 vP;void main(){vec3 p=position;p.z+=sin(p.x*.19+time*.65)*.13+sin(p.y*.27-time*.53)*.085;vec4 world=modelMatrix*vec4(p,1.);vP=world.xyz;gl_Position=projectionMatrix*viewMatrix*world;}`,fragmentShader:`uniform float time;varying vec3 vP;void main(){
+ vec2 q=vP.xz;float dx=.0247*cos((q.x-25.)*.19+time*.65),dz=.02295*cos((23.-q.y)*.27-time*.53);
+ dx+=.045*cos(q.x*2.4+q.y*.8+time*1.2)+.025*cos(q.x*4.1-q.y*2.3-time*1.5);
+ dz+=.035*cos(q.y*2.8-q.x*.6-time*.9);
+ vec3 n=normalize(vec3(-dx,1.,dz)),eye=normalize(cameraPosition-vP);float fres=.025+.975*pow(1.-max(dot(eye,n),0.),5.);
+ vec3 reflected=reflect(-eye,n);vec3 sky=mix(vec3(.28,.38,.42),vec3(.57,.66,.69),smoothstep(-.1,.7,reflected.y));
+ float bands=.5+.5*sin(q.x*.08+sin(q.y*.13));vec3 deep=mix(vec3(.035,.13,.16),vec3(.075,.23,.24),bands);
+ vec3 c=mix(deep,sky,fres);float glint=pow(max(dot(reflect(normalize(vec3(-.5,-1.,-.3)),n),eye),0.),110.);c+=vec3(.8,.82,.75)*glint*.4;
+ float haze=1.-exp(-length(cameraPosition-vP)*.008);c=mix(c,vec3(.34,.43,.46),haze*.65);gl_FragColor=vec4(c,1.);
+ #include <tonemapping_fragment>
+ #include <colorspace_fragment>
+ }`,side:THREE.FrontSide});
  const water=mesh(new THREE.PlaneGeometry(270,270,120,120),waterMaterial,25,-.66,23);water.rotation.x=-Math.PI/2;water.castShadow=false;water.receiveShadow=false;
  // Harbour pennants and a sparse drifting sea-mist layer.
  const pennants=[];

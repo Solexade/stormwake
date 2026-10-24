@@ -26,3 +26,67 @@
 .solo-coastal .game-panel,.solo-coastal dialog{color:#e9e7de}.solo-coastal .solo-controls kbd{background:#e6ece4;color:#315f59;border-color:#bdcec3}
 
 .solo-coastal.expedition-mode .hero-choice{display:none}
+
+/* Suppress double-tap zoom on controls, retain pinch zoom outside the playfield. */
+button,a,summary,select{touch-action:manipulation}
+#viewport,#stage,#touchControls,.touch,.adventure-toolbar,.playbar{touch-action:none;-webkit-user-select:none;user-select:none}
+
+/* Isolated Solo-only trial: modern type and the supplied composition. */
+.solo-trial{font-family:Inter,'Segoe UI',Arial,sans-serif}
+.solo-trial h1,.solo-trial h2,.solo-trial h3,.solo-trial .brand>span,.solo-trial .hero-choice label,.solo-trial .character-preview strong{font-family:Inter,'Segoe UI',Arial,sans-serif;font-style:normal}
+.solo-trial .solo-welcome{min-height:370px;background-position:center 38%;border-radius:28px;padding:48px 5%}
+.solo-trial .solo-welcome h1{font-weight:800;letter-spacing:-1.8px;line-height:1.04;font-size:clamp(38px,4.8vw,60px)}
+.solo-trial .solo-welcome .eyebrow{font-size:11px;letter-spacing:3.5px;color:#b9e6e6}
+.solo-trial .solo-welcome p{font-size:17px;line-height:1.7;max-width:380px;color:#d1ebeb}
+.solo-trial .solo-welcome .voyage-cta{font-size:16px;font-weight:700;color:#c6eeeb;margin-top:18px}
+.solo-trial .hero h2{font-weight:750;letter-spacing:-1.5px;line-height:1.06}.solo-trial .hero h2 em{font-style:normal}
+.solo-trial .solo-menu nav .nav,.solo-trial .hero-choice select,.solo-trial .game-bottom,.solo-trial .voyage-columns,.solo-trial dialog{font-family:Inter,'Segoe UI',Arial,sans-serif}
+@media(max-width:700px){.solo-trial .solo-welcome{min-height:350px;padding:30px 6%;background-position:56% center}.solo-trial .solo-welcome h1{font-size:38px;letter-spacing:-1.3px}.solo-trial .solo-welcome p{font-size:14px;max-width:270px}.solo-trial .solo-welcome .eyebrow{font-size:9px;letter-spacing:2.5px}.solo-trial .hero h2{font-size:36px}}
+
+/* One continuous raider backdrop for the Solo-only presentation. */
+.solo-trial:not(.expedition-mode){background:linear-gradient(#07192370,#071923d9),url('/assets/stormwake_reference.png') center top/cover no-repeat fixed;color:#e6efec}
+.solo-trial:not(.expedition-mode) .topbar{background:#091b26bf;border-color:#b0d5d526}.solo-trial:not(.expedition-mode) .brand>span,.solo-trial:not(.expedition-mode) .brand-sub,.solo-trial:not(.expedition-mode) .icon-button,.solo-trial:not(.expedition-mode) .profile-button{color:#d8eeeb}
+.solo-trial .solo-welcome{background:none;border-radius:0;min-height:350px}.solo-trial .solo-welcome>div{max-width:560px;text-shadow:0 2px 15px #06121d}
+.solo-trial:not(.expedition-mode) .hero-choice label,.solo-trial:not(.expedition-mode) .hero-choice p,.solo-trial:not(.expedition-mode) .bottom-note,.solo-trial:not(.expedition-mode) .under-game,.solo-trial summary{color:#d1e7e3}
+.solo-trial .voyage-details{background:#0c2029e8;border-color:#7daca94d}.solo-trial .voyage-columns section,.solo-trial .voyage-columns .objectives,.solo-trial .voyage-columns p,.solo-trial .voyage-columns small,.solo-trial .voyage-columns h2,.solo-trial .voyage-columns h3,.solo-trial .voyage-columns .card-eyebrow{color:#d0e0dc}.solo-trial .solo-menu nav{background:#102833}.solo-trial .solo-menu nav .nav{color:#e3eeeb}
+@media(max-width:700px){.solo-trial:not(.expedition-mode){background-attachment:scroll;background-size:auto 100vh;background-color:#091d28}.solo-trial .solo-welcome{background:none}.solo-trial .solo-welcome h1{max-width:280px}}
+/* Machinefall campaign trial: shared artwork, restrained chrome, clear deployment. */
+.solo-trial:not(.expedition-mode){background:linear-gradient(90deg,#061018ed 0%,#06101885 60%,#10132699),url('/assets/stormwake_reference.png') center top/cover fixed;color:#edf1f1}
+.solo-trial .topbar{border-bottom:1px solid #8ae9dd30;background:#07121bd9!important}
+.solo-trial .solo-welcome{min-height:62vh;display:flex;align-items:center;padding:70px 3% 50px}
+.solo-trial .solo-welcome h1{font-family:Inter,'Segoe UI',sans-serif;font-weight:850;font-size:clamp(46px,6.4vw,92px);line-height:1.02;letter-spacing:-.055em;max-width:800px;color:#f1f2ed}
+.solo-trial .solo-welcome p{max-width:510px;line-height:1.8;color:#bfd1d7;font-size:17px}
+.solo-trial .eyebrow{color:#8de1da;letter-spacing:.18em}
+.campaign{padding:36px 3%;border-block:1px solid #adddd32a;background:#07141be8;border-radius:20px;margin-bottom:30px}
+.campaign-heading,.campaign-foot{display:flex;justify-content:space-between;align-items:center;gap:24px}.campaign h2{font:700 clamp(24px,3vw,38px)/1.1 Inter,'Segoe UI',sans-serif;letter-spacing:-.035em;margin:12px 0 28px}.chapter-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#708c9130}.chapter-grid article{background:#0c1b24;padding:28px;position:relative}.chapter-grid article.chapter-current{background:linear-gradient(145deg,#214147,#0a2029);box-shadow:inset 0 3px #89e4d6}.chapter-number{font:700 32px Inter,'Segoe UI',sans-serif;color:#789d9d}.chapter-grid h3{font:650 23px Inter,'Segoe UI',sans-serif;color:#eff2ed;margin:20px 0 12px}.chapter-grid p,.campaign-foot p{color:#b2c6cd;line-height:1.7;font-size:14px}.chapter-grid small{display:block;margin-top:25px;font-size:10px;letter-spacing:.12em;color:#83d6ce}.campaign-foot{margin-top:24px}.campaign-foot p{max-width:480px}.campaign button,.story-intro button{min-height:48px;padding:12px 20px;border:1px solid #91cfc457;border-radius:6px;background:#132b35;color:#e3f6f2;cursor:pointer}.campaign .primary,.story-intro .primary{background:#96dfd2;color:#072327;font-weight:750}.solo-trial .hero-choice{border-radius:14px;background:#091c25c9}.solo-trial .game-panel{border-radius:18px;overflow:hidden}.solo-trial .voyage-details{border-radius:14px}.solo-trial.expedition-mode .campaign{display:none}
+.story-intro{max-width:none!important;width:100vw!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;overflow:hidden;color:#f0f2ee;background:linear-gradient(90deg,#040b13ed,#0a142778),url('/assets/stormwake_reference.png') center/cover}
+.story-intro::backdrop{background:#030911}.story-copy{position:absolute;left:8%;bottom:15%;max-width:660px;width:84%;z-index:1}.story-copy h2{font:800 clamp(35px,6vw,78px)/1.02 Inter,'Segoe UI',sans-serif;letter-spacing:-.045em;margin:18px 0}.story-copy p{font:400 clamp(16px,2vw,21px)/1.65 Inter,'Segoe UI',sans-serif;color:#d0dbe1;max-width:570px}.story-copy>div{display:flex;gap:14px;margin:24px 0}.story-copy small{color:#9aaebd}.story-rift{position:absolute;width:35vw;height:80vh;right:16%;top:10%;border:2px solid #97f5ff90;border-radius:50%;box-shadow:0 0 100px #54cfe06b,inset 0 0 80px #777ce043;transform:rotate(-16deg);animation:rift 7s ease-in-out infinite}.story-intro[data-frame="0"] .story-rift{opacity:.1}.story-intro[data-frame="2"] .story-rift{border-color:#ffad64;box-shadow:0 0 100px #ff5e3d60}.story-intro[data-frame="3"] .story-rift{opacity:.35}@keyframes rift{50%{transform:rotate(-12deg) scale(1.08);filter:brightness(1.5)}}
+@media(max-width:700px){.chapter-grid{grid-template-columns:1fr}.chapter-grid article{padding:22px}.chapter-number{float:right}.chapter-grid h3{margin-top:0}.chapter-grid small{margin-top:12px}.campaign-heading,.campaign-foot{align-items:flex-start;flex-direction:column;gap:10px}.solo-trial .solo-welcome{min-height:480px;padding:40px 4%}.solo-trial:not(.expedition-mode){background-attachment:scroll}.story-copy{bottom:10%}.story-rift{width:70vw;right:5%}.campaign button{width:100%}}
+@media(prefers-reduced-motion:reduce){.story-rift{animation:none}}
+@media(max-width:700px){.solo-trial:not(.expedition-mode){background-size:auto 100vh;background-position:58% top;background-repeat:no-repeat;background-color:#07141b}.story-copy{bottom:8%}.story-copy h2{font-size:38px}.story-copy p{font-size:16px}}
+/* Field HUD: compact, readable resistance equipment rather than a second menu. */
+.solo-trial .in-game{background:#061820d9;border:1px solid #87c9c840;border-radius:12px;padding:12px;max-width:290px;backdrop-filter:blur(7px)}
+.solo-trial .health-track,.solo-trial .stamina-track{border-radius:6px;overflow:hidden}.solo-trial #hpFill{background:linear-gradient(90deg,#52c3ad,#b1efd7)}.solo-trial #staminaFill{background:#e7b66b}
+.power-status{padding:7px 8px;background:#1744509c;border-left:2px solid #8feadd;color:#bdf7ec;font-size:10px;line-height:1.5;margin-top:9px;border-radius:4px}.counter-status{font-size:10px;color:#dfc897;margin-top:5px}.solo-trial .combat-status{font-size:11px;color:#eff6f4;letter-spacing:.06em}.solo-trial .location-tag{background:#071b23d9;border:1px solid #7ca7b14d;border-radius:8px;padding:9px 12px}.solo-trial .playbar{background:#06151ee8;border-bottom:1px solid #83bbb938}.solo-trial .playbar strong{color:#b2e5df;letter-spacing:.1em}.solo-trial .playbar button,.solo-trial .game-tools button{border-radius:7px;background:#122c36;color:#d9efed;border:1px solid #749d9f44}.solo-trial .interaction{background:#a0e2d3;color:#08262a;border-radius:9px}.solo-trial .touch-actions button{background:#102c39e8;border:1px solid #a0e2d37a;color:#e7f5f1;border-radius:14px}.solo-trial #soloStrike{background:#a0e2d3;color:#092b2b}.solo-trial .boss-bar{background:#200f23df;border:1px solid #c782b954;padding:10px;border-radius:10px}
+@media(max-width:700px){.solo-trial .in-game{max-width:210px;padding:8px}.power-status{font-size:9px;padding:4px 6px;margin-top:5px}.counter-status{font-size:9px}.solo-trial .location-tag{max-width:48%;font-size:9px}.solo-trial .pack-status{font-size:9px}}
+@media(max-height:500px) and (orientation:landscape){.solo-trial .in-game{max-width:195px;padding:6px}.solo-trial .run-counters,.solo-trial .pack-status,.solo-trial .counter-status{display:none}.power-status{margin-top:3px;padding:2px 5px}.solo-trial .combat-status{font-size:9px}}
+.solo-trial.expedition-mode .interaction{top:auto!important;bottom:82px!important;left:50%!important;transform:translateX(-50%);width:max-content;max-width:70%;padding:10px 16px;min-height:44px;font-size:13px;z-index:12}
+@media(max-width:700px){.solo-trial.expedition-mode .interaction{bottom:70px!important;max-width:65%;font-size:12px}.solo-trial .in-game{max-width:175px}.solo-trial .counter-status{max-width:145px}}
+/* Carry the homepage's moonlit blue / violet artwork palette into the HUD. */
+.solo-trial{--hud-surface:linear-gradient(135deg,#293b55ed,#191e35eb);--hud-edge:#b5c9e34d;--hud-text:#f1f2ed;--hud-muted:#c0cddd;--hud-accent:#d3dffc}
+.solo-trial .in-game,.solo-trial .location-tag{background:var(--hud-surface);border-color:var(--hud-edge);color:var(--hud-text);box-shadow:0 8px 24px #060c202e,inset 0 1px #ffffff12}
+.solo-trial .health-label,.solo-trial .stamina-label,.solo-trial .pack-status,.solo-trial .location-tag small,.solo-trial .run-counters{color:var(--hud-muted)}
+.solo-trial .health-icon,.solo-trial .location-tag .diamond{color:var(--hud-accent)}
+.solo-trial .health-track,.solo-trial .stamina-track{background:#0d1629;border:1px solid #acbfd323}
+.solo-trial #hpFill{background:linear-gradient(90deg,#8eacd7,#e1eafd)}
+.solo-trial #staminaFill{background:linear-gradient(90deg,#b38b55,#eed3a4)}
+.solo-trial .power-status{background:linear-gradient(100deg,#514a735e,#26375299);border-left-color:#c4b7ec;color:#e8e2fb}
+.solo-trial .counter-status{color:#e5cfab}.solo-trial .combat-status{color:var(--hud-text)}
+.solo-trial .playbar{background:linear-gradient(90deg,#172238f2,#25283ef2);border-color:var(--hud-edge)}
+.solo-trial .playbar strong{color:#e3e9f5}
+.solo-trial .playbar button,.solo-trial .game-tools button,.solo-trial .touch-actions button,.solo-trial .adventure-toolbar select{background:linear-gradient(145deg,#35455f,#242d47);border-color:var(--hud-edge);color:var(--hud-text);box-shadow:inset 0 1px #ffffff0d}
+.solo-trial .interaction,.solo-trial #soloStrike,.solo-trial .combo-trigger{background:linear-gradient(120deg,#e5e9f3,#bfcce6);border:1px solid #f3f4f880;color:#17233b;box-shadow:0 4px 18px #09102140}
+.solo-trial .interaction small,.solo-trial .combo-trigger small{color:#344463}
+.solo-trial .boss-bar{background:linear-gradient(120deg,#30263fec,#1b2439ed);border-color:#bca9d85c;color:#f1e7fa}
+.solo-trial .boss-bar small{color:#d1c3df}
+.solo-trial .playbar button:hover,.solo-trial .game-tools button:hover{border-color:#d5e1f3a6;background:#40516d}

@@ -17,3 +17,11 @@ test('enemy warning countdown includes archers and ends on release',()=>{
  assert.equal(warningFor({hp:80,wind:0}),null);assert.equal(warningFor({hp:0,wind:.2}),null);
  assert.equal(warningFor({hp:100,type:'boss',phase:2,wind:.85}).progress,0);
 });
+
+import {soloAnimationAliases} from '../public/heroes.js';
+test('Solo variants use their own rig and steel chains select distinct authored clips',()=>{
+ assert.deepEqual(soloAnimationAliases('frost'),soloAnimationAliases('azure'));
+ assert.deepEqual(soloAnimationAliases('ash'),soloAnimationAliases('hood'));
+ const map=soloAnimationAliases('azure');assert.equal(new Set(['light1','light2','heavy'].map(action=>map[combatPose({hp:100,action}).name])).size,3);
+ assert.equal(map.Roll_sword,'roll');assert.equal(map.Run,'sprint_loop');
+});

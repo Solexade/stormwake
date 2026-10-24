@@ -4,7 +4,7 @@ import * as T from '../vendor/three.module.js';
 import {createFighter,animateFighter} from './fighters.js';
 import {dressArena} from './environment.js';
 export async function createArena(canvas){
- const renderer=new T.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;
+ const renderer=new T.WebGLRenderer({canvas,antialias:!matchMedia('(any-pointer:coarse)').matches});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;
  const film=cinematicPass(renderer);let performanceMode=false;
  const scene=new T.Scene();scene.background=new T.Color('#10172e');scene.fog=new T.FogExp2('#10172e',.035);
  const camera=new T.PerspectiveCamera(44,1,.1,80);camera.position.set(6,1.9,13);camera.lookAt(6,1.1,0);

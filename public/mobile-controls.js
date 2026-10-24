@@ -10,7 +10,7 @@ export function arcadeStrike(f){
  if(f?.y>0)return {key:'j',label:'Air strike'};
  return {key:'i',label:'Jab'};
 }
-export function soloStrike(p){return (p?.comboCharge||0)>=3?{action:'combo',label:'Finisher'}:p?.combo>=2&&p.comboWindow>0?{action:'heavy',label:'Breaker'}:{action:'attack',label:p?.comboWindow>0?'Backhand':'Strike'};}
+export function soloStrike(p){if(p?.riposteWindow>0&&p.weapon!=='gun')return {action:'attack',label:'Counter!'};return (p?.comboCharge||0)>=3?{action:'combo',label:'Finisher'}:p?.combo>=2&&p.comboWindow>0?{action:'heavy',label:'Breaker'}:{action:'attack',label:p?.comboWindow>0?'Backhand':'Strike'};}
 export function bindMovementPad(element,onIntent){
  let pointer=null,lastJump=false;const thumb=element.querySelector('span');
  const reset=()=>{pointer=null;lastJump=false;thumb.style.transform='';onIntent({axis:0,crouch:false,jump:false});};

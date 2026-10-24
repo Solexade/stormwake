@@ -6,7 +6,7 @@ import {createHeroPreview} from './preview.js';
 import {HEROES,ARENAS,heroById,arenaById} from './catalog.js';
 import {createArena} from './view.js';
 const $=id=>document.getElementById(id),keyboard=new Set(),pointers=new Map(),commands=[];
-let room=null,view=null,viewPromise=null,busy=false,seq=0,lastSend=0,lastReply=0,low=false,lastMode='ai',lastDifficulty='normal',syncing=false,inputDirty=false;
+let room=null,view=null,viewPromise=null,busy=false,seq=0,lastSend=0,lastReply=0,low=matchMedia('(any-pointer:coarse)').matches,lastMode='ai',lastDifficulty='normal',syncing=false,inputDirty=false;
 const arcadeAudio=new ArcadeAudio();
 installMixerDialog(arcadeAudio.mixer,$('arcadeMix'),clear);
 const unlockAudio=()=>{if(!arcadeAudio.mixer.ctx)void arcadeAudio.enable().then(()=>{if(!room)arcadeAudio.mixer.setScene('combat',false);$('arcadeSound').textContent=arcadeAudio.enabled?'Sound: on':'Sound: off';$('arcadeSound').setAttribute('aria-pressed',String(arcadeAudio.enabled));});};
@@ -37,7 +37,7 @@ function paint(){if(!room)return;const s=room.match;if(arcadeAudio.enabled)arcad
  $('fight').dataset.phase=s.phase;$('fight').dataset.round=String(s.round);$('fight').dataset.playerX=f.x.toFixed(3);$('fight').dataset.opponentHp=String(s.fighters[1-room.seat].hp);
 }
 async function enter(data){if(arcadeAudio.enabled)await arcadeAudio.enable();room=data;seq=Math.max(seq,room.match.fighters[room.seat].seq+1);lastMode=room.match.mode;lastDifficulty=room.match.difficulty;clear();$('lobby').hidden=true;$('arena').hidden=false;document.body.classList.add('fighting');$('error').textContent='';
- if(!viewPromise)viewPromise=createArena($('fight')).then(v=>view=v).catch(e=>{viewPromise=null;throw e;});
+ if(!viewPromise)viewPromise=createArena($('fight')).then(v=>{view=v;v.quality(low);$('quality').textContent=low?'Performance':'High detail';return v;}).catch(e=>{viewPromise=null;throw e;});
  try{await viewPromise;$('fight').focus({preventScroll:true});}catch(e){$('error').textContent='The 3D fighters could not load. Reload to retry. '+e.message;}paint();lastReply=performance.now();
 }
 async function start(mode){unlockAudio();if(busy)return;busy=true;try{lastDifficulty=$('difficulty').value;await enter(await api('create',{mode,difficulty:lastDifficulty,hero:selectedHero,arena:selectedArena}));}catch(e){$('error').textContent=e.message;}finally{busy=false;}}

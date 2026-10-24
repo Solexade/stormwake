@@ -1,4 +1,4 @@
-import {heroById,storedHero,inPlaceClip,heroMaterial} from './heroes.js';
+import {heroById,storedHero,inPlaceClip,heroMaterial,soloAnimationAliases} from './heroes.js';
 import {combatPose} from './combat-presentation.js';
 const aColor=(type,color)=>type==='player'?color:new THREE.Color(type==='boss'?'#9f717e':type==='archer'?'#789e89':'#ba8980').multiply(color);
 import * as THREE from './vendor/three.module.js';
@@ -31,8 +31,8 @@ export function dressWarrior(actor,canvas,requestedHero){
   const mixer=new THREE.AnimationMixer(model),actions={};
   for(const original of g.animations){const clip=detailed?inPlaceClip(original):original,name=clip.name.split('|').pop();actions[name]=mixer.clipAction(clip);const alternate=clip.clone();alternate.name+=':alternate';actions[name+':alternate']=mixer.clipAction(alternate);}
   if(detailed){
-   const names=hero.id==='azure'?{Idle:'sword_idle',Idle_swordRight:'sword_idle',Idle_swordLeft:'sword_idle',Walking:'walk_loop',Run:'run_loop',Run_swordAttack:'sword_regular_a',swordAttackJump:'sword_regular_b',Roll_sword:'jump_loop',Death:'death'}:{Idle:'idle',Idle_swordRight:'idle',Idle_swordLeft:'idle',Walking:'walk_loop',Run:'run_loop',Run_swordAttack:'punch_jab',swordAttackJump:'kick',Roll_sword:'jump_loop',Death:'idle'};
-   for(const [alias,name] of Object.entries(names)){const real=actions[name]?name:hero.id==='azure'?'sword_idle':'idle';actions[alias]=actions[real];actions[alias+':alternate']=actions[real+':alternate'];}
+   const names=soloAnimationAliases(hero.id);
+   for(const [alias,name] of Object.entries(names)){const real=actions[name]?name:names.Idle;actions[alias]=actions[real];actions[alias+':alternate']=actions[real+':alternate'];}
   }
   actor.avatar={heroId:detailed?hero.id:null,mount,model,mixer,actions,current:null,key:null,capeRotation:actor.cape.rotation.clone()};
   // The authored right palm drives the existing selectable weapons.
@@ -50,7 +50,7 @@ export function animateAvatar(a,s,dt){
  const v=a.avatar;if(!v)return;
  const pose=combatPose(s),key=[pose.state||pose.name,pose.key??''].join(':');
  if(v.key!==key){
-  const old=v.current;let action=v.actions[pose.name]||v.actions.Idle;
+  const old=v.current;let action=v.actions[pose.name]||v.actions[pose.fallback]||v.actions.Idle;
   if(action===old)action=v.actions[pose.name+':alternate']||action;
   action.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
   action.setLoop(pose.once?THREE.LoopOnce:THREE.LoopRepeat,pose.once?1:Infinity);action.clampWhenFinished=true;
@@ -61,10 +61,23 @@ export function animateAvatar(a,s,dt){
  action.timeScale=pose.hold!==undefined?0:pose.duration?action.getClip().duration/pose.duration:pose.moving?Math.max(.65,Math.min(1.65,Math.hypot(s.vx||0,s.vy||0)/(s.sprinting?440:310))):1;
  if(pose.hold!==undefined)action.time=action.getClip().duration*pose.hold;
  v.mixer.update(Math.min(dt,.1));
+ // Presentation-only carbine brace. Mixer establishes the base pose each frame.
+ if(s.weapon==='gun'){
+  const upper=v.model.getObjectByName('mixamorigRightArm');
+  const fore=v.model.getObjectByName('mixamorigRightForeArm');
+  const left=v.model.getObjectByName('mixamorigLeftArm');
+  const firing=['light1','light2','heavy','finisher'].includes(s.action);
+  const recoil=firing?Math.max(0,1-Math.abs((s.actionTime||0)-.08)/.12):0;
+  if(upper)upper.rotateZ(-.9-recoil*.08);
+  if(fore)fore.rotateY(-.65);
+  if(left)left.rotateZ(.65);
+  a.weapon.rotation.set(-.2,0,Math.PI/2);
+  a.shield.visible=false;
+ }else{a.weapon.rotation.set(0,0,Math.PI/2);a.shield.visible=true;}
  a.cape.rotation.copy(v.capeRotation);a.cape.rotation.x+=Math.sin(v.mixer.time*3)*.025;
  // Local pose accents leave the actor's world position and controls untouched.
  const accent=s.action==='light2'?.18:s.stagger>0?-.12:0;
  v.mount.rotation.z+=(accent-v.mount.rotation.z)*(1-Math.exp(-dt*20));
- if(v.heroId){const phase=s.actionDuration?Math.min(1,(s.actionTime||0)/s.actionDuration):0;v.mount.rotation.x=s.action==='roll'?-Math.PI*2*phase:0;if(s.hp<=0&&v.heroId==='hood')v.mount.rotation.z=1.35;}
+ if(v.heroId){const phase=s.actionDuration?Math.min(1,(s.actionTime||0)/s.actionDuration):0;v.mount.rotation.x=s.action==='roll'&&heroById(v.heroId).asset!=='azure_champion.glb'?-Math.PI*2*phase:0;if(s.hp<=0&&v.heroId==='hood')v.mount.rotation.z=1.35;}
  v.model.traverse(n=>{if(n.isMesh)for(const m of Array.isArray(n.material)?n.material:[n.material]){m.emissive.set(s.flash>0?'#c47132':'#000000');m.emissiveIntensity=s.flash>0?.65:0;}});
 }

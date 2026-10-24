@@ -63,10 +63,10 @@ test('HTTP sessions, score tampering, origin checks, and persistence',async t=>{
   for(const route of ['auth/challenge','auth/verify'])assert.equal((await post(route,{}, {Cookie:recoveredCookie})).status,410);
   response=await post('profile',{name:'Test Voyager'},{Cookie:freshCookie});assert.equal(response.status,200);assert.notEqual((await response.json()).player.id,state.player.id);
   response=await fetch(base+'/wallet.js');assert.equal(response.status,404);
-  response=await fetch(base+'/');assert.match(await response.text(),/id="stormTitle"/);
+  response=await fetch(base+'/');assert.match(await response.text(),/id="soloTitle"/);
   for(const [legacy,destination] of [['/arcade','/'],['/arcade.html','/'],['/index.html','/'],['/solo.html','/solo']]){
     const redirect=await fetch(base+legacy,{redirect:'manual'});assert.equal(redirect.status,308);assert.equal(redirect.headers.get('location'),destination);
   }
-  response=await fetch(base+'/solo');const html=await response.text();assert.doesNotMatch(html,/walletBtn|Connect wallet|Save \/ wallet/);assert.match(html,/FREE ARCADE ADVENTURE/);
+  response=await fetch(base+'/solo');const html=await response.text();assert.doesNotMatch(html,/walletBtn|Connect wallet|Save \/ wallet/);assert.match(html,/FREE SOLO ADVENTURE/);
 
 });

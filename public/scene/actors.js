@@ -34,18 +34,27 @@ export function createActorFactory({scene,mats,box,ball,cylinder,beam,mesh,form,
   // Axe and round shield are carried by animated joints.
   const weapon=new THREE.Group();weapon.position.set(0,-.3,0);weapon.rotation.x=-.15;arms[1].elbow.add(weapon);cylinder(mats.wood,0,.23,0,.024,.027,1.0,weapon);
   const axeShape=new THREE.Shape();axeShape.moveTo(.025,.45);axeShape.lineTo(.25,.60);axeShape.quadraticCurveTo(.39,.33,.24,.17);axeShape.lineTo(.025,.28);axeShape.closePath();const axe=mesh(new THREE.ExtrudeGeometry(axeShape,{depth:.045,bevelEnabled:true,bevelThickness:.015,bevelSize:.008,bevelSegments:1}),mats.steel,0,0,-.023,weapon);box(mats.gold,0,.35,0,.08,.13,.075,weapon);
-  const axeParts=[...weapon.children];const sword=new THREE.Group();weapon.add(sword);box(mats.steel,0,.38,0,.075,.95,.04,sword);box(mats.gold,0,-.04,0,.33,.06,.08,sword);cylinder(mats.leather,0,-.18,0,.035,.035,.25,sword);const spear=new THREE.Group();weapon.add(spear);cylinder(mats.wood,0,.35,0,.025,.025,1.9,spear);mesh(new THREE.ConeGeometry(.09,.36,4),mats.steel,0,1.46,0,spear);sword.visible=spear.visible=false;
+  const axeParts=[...weapon.children];const gun=new THREE.Group();weapon.add(gun);box(mats.darkstone,0,.12,0,.15,.55,.17,gun);box(mats.steel,0,.47,0,.07,.38,.07,gun);box(mats.glow,0,.26,-.09,.08,.18,.02,gun);gun.rotation.z=-Math.PI/2;gun.visible=false;const sword=new THREE.Group();weapon.add(sword);box(mats.steel,0,.38,0,.075,.95,.04,sword);box(mats.gold,0,-.04,0,.33,.06,.08,sword);cylinder(mats.leather,0,-.18,0,.035,.035,.25,sword);const spear=new THREE.Group();weapon.add(spear);cylinder(mats.wood,0,.35,0,.025,.025,1.9,spear);mesh(new THREE.ConeGeometry(.09,.36,4),mats.steel,0,1.46,0,spear);sword.visible=spear.visible=false;
   const shield=new THREE.Group();shield.position.set(-.10,-.15,-.04);arms[0].elbow.add(shield);const shieldFace=cylinder(mats.wood,0,0,0,.33,.33,.08,shield,24);shieldFace.rotation.x=Math.PI/2;const edge=mesh(new THREE.TorusGeometry(.33,.026,7,32),mats.metal,0,0,-.05,shield);ball(mats.metal,0,0,-.074,.08,.08,.04,shield);for(let i=0;i<12;i++){const a=i*Math.PI/6;ball(mats.gold,Math.sin(a)*.27,Math.cos(a)*.27,-.048,.013,.013,.016,shield);}
   let bow=null;if(archer){weapon.visible=false;bow=mesh(new THREE.TorusGeometry(.35,.021,5,20,Math.PI),mats.wood,0,-.1,0,arms[1].elbow);bow.rotation.z=-Math.PI/2;}
   if(boss){weapon.scale.set(1.7,1.4,1.7);shield.visible=false;for(const side of [-1,1]){beam(new THREE.Vector3(side*.12,1.97,0),new THREE.Vector3(side*.26,2.25,.015),.035,mats.gold,rig);}}
   // Health bar floats only above injured enemies.
   const health=new THREE.Group();health.position.y=2.35*scale;root.add(health);const bg=box(new THREE.MeshBasicMaterial({color:'#172428'}),0,0,0,.65,.05,.035,health);const fill=box(new THREE.MeshBasicMaterial({color:'#d7ac75'}),0,0,-.025,.62,.035,.012,health);health.visible=false;
   batchStatic(head);for(const part of legs){batchStatic(part.ankle);batchStatic(part.knee,new Set([part.ankle]));batchStatic(part.hip,new Set([part.knee]));}for(const part of arms){batchStatic(part.elbow,new Set([weapon,shield]));batchStatic(part.shoulder,new Set([part.elbow]));}batchStatic(shield);batchStatic(rig,new Set([head,cape,...legs.map(l=>l.hip),...arms.map(a=>a.shoulder)]));
-  const actor={root,rig,contact,legs,arms,head,cape,weapon,axeParts,sword,spear,shield,health,fill,scale,lastX:0,lastZ:0,stride:0,speed:0,type,bow};dressWarrior(actor,canvas);return actor;
+  const actor={root,rig,contact,legs,arms,head,cape,weapon,axeParts,sword,spear,gun,shield,health,fill,scale,lastX:0,lastZ:0,stride:0,speed:0,type,bow};if(!enemy)dressWarrior(actor,canvas);else{
+   const old=[];rig.traverse(n=>{if(n.isMesh)old.push(n);});old.forEach(n=>n.removeFromParent());
+   const palette=type==='boss'?['#7c43a1','#9bffff']:type==='brute'?['#b74030','#ffe091']:type==='archer'?['#b7c5cd','#ff9e36']:['#80543b','#97ffbd'];
+   const shell=new THREE.MeshStandardMaterial({color:palette[0],roughness:.62,metalness:.35}),eye=new THREE.MeshStandardMaterial({color:palette[1],emissive:palette[1],emissiveIntensity:1.3});
+   box(shell,0,1.12,0,.6,.65,.4,rig);box(mats.darkstone,0,1.13,-.22,.35,.3,.04,rig);box(eye,0,1.13,-.25,.22,.06,.02,rig);
+   box(shell,0,.05,0,.62,.48,.44,head);box(mats.darkstone,0,.04,-.24,.53,.22,.04,head);
+   for(const side of [-1,1]){box(eye,side*.15,.04,-.27,.12,.1,.03,head);box(shell,side*.2,.39,0,.07,.25,.07,head);box(eye,side*.2,.54,0,.09,.07,.09,head);}
+   legs.forEach(l=>{box(shell,0,-.2,0,.18,.4,.22,l.hip);box(mats.darkstone,0,-.2,0,.13,.4,.16,l.knee);box(shell,0,0,-.06,.25,.17,.38,l.ankle);});
+   arms.forEach(a=>{box(shell,0,-.18,0,.2,.38,.22,a.shoulder);box(mats.darkstone,0,-.17,0,.15,.34,.18,a.elbow);box(shell,0,-.34,0,.22,.15,.23,a.elbow);});
+  }return actor;
  }
 return warrior;
 }
-export function animateActor(a,s,dt,t,camera,first){if(a.type==='player'){const equipped=s.weapon||'axe';a.axeParts.forEach(part=>part.visible=equipped==='axe');a.sword.visible=equipped==='sword';a.spear.visible=equipped==='spear';}
+export function animateActor(a,s,dt,t,camera,first){if(a.type==='player'){const equipped=s.weapon||'axe';a.axeParts.forEach(part=>part.visible=equipped==='axe');a.sword.visible=equipped==='sword';a.spear.visible=equipped==='spear';a.gun.visible=equipped==='gun';}
   const rolling=s.action==='roll',dead=s.hp<=0;
   // Bounded visual extrapolation fills gaps between authoritative snapshots.
   if(a.sample!==s){a.sample=s;a.sampleAt=t;}

@@ -38,3 +38,6 @@ test('frame statistics include slow frames, bound history and exclude suspended-
 test('every shipped asset has matching provenance/hash and every browser import resolves',async()=>{
   assert.equal(await validateAssets(),18);
 });
+
+import {initialQuality} from '../public/scene/quality.js';
+test('touch devices start lightweight without changing desktop quality',()=>{assert.equal(initialQuality(true),'low');assert.equal(initialQuality(false),'high');});

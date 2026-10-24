@@ -1,4 +1,5 @@
-// Preserve the existing two-button workflow and rendering defaults.
+export function initialQuality(coarse=false) { return coarse ? "low" : "high"; }
+// Mobile starts with the lighter preset; players can still select High.
 export const QUALITY = Object.freeze({
   high: Object.freeze({pixelRatio: 1.6, shadows: true, bloom: true, foliage: true, shore: true}),
   low: Object.freeze({pixelRatio: 1, shadows: false, bloom: false, foliage: false, shore: false}),

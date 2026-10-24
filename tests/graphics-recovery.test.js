@@ -34,7 +34,7 @@ test('failed asset retains fallback; loaded assets respect Performance preset',a
  await failed.add('missing',fallback,{x:0,z:0,height:1});assert.equal(fallback.visible,true);
  const loaded=createHarbourAssets(scene,canvas,async()=>({scene:new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial())}));
  loaded.setQuality('low');await loaded.add('valid',fallback,{x:0,z:0,height:1});assert.equal(fallback.visible,true);
- loaded.setQuality('high');assert.equal(fallback.visible,false);assert.equal(canvas.dataset.harbourAssets,'1');
+ await loaded.setQuality('high');assert.equal(fallback.visible,false);assert.equal(canvas.dataset.harbourAssets,'1');
  loaded.setQuality('low');assert.equal(fallback.visible,true);
 });
 
@@ -47,4 +47,11 @@ test('imported GLBs contain embedded PBR maps and no remote resource URIs',async
   for(const image of doc.images){assert.equal(image.uri,undefined);assert.equal(typeof image.bufferView,'number');}
   const m=doc.materials[0];assert.ok(m.normalTexture&&m.occlusionTexture&&m.pbrMetallicRoughness.baseColorTexture&&m.pbrMetallicRoughness.metallicRoughnessTexture);
  }
+});
+
+test('Performance defers optional model downloads until High is requested',async()=>{
+ const scene=new THREE.Scene(),canvas={dataset:{}},fallback=new THREE.Group();let calls=0;
+ const assets=createHarbourAssets(scene,canvas,async()=>{calls++;return {scene:new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial())};});
+ assets.setQuality('low');await assets.add('test',fallback,{x:0,z:0,height:1});assert.equal(calls,0);assert.equal(fallback.visible,true);
+ await assets.setQuality('high');assert.equal(calls,1);assert.equal(fallback.visible,false);await assets.setQuality('high');assert.equal(calls,1);
 });

@@ -9,6 +9,10 @@
   },
   "rewrites": [
     {
+      "source": "/",
+      "destination": "/solo.html"
+    },
+    {
       "source": "/solo",
       "destination": "/solo.html"
     },

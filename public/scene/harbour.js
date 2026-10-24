@@ -98,13 +98,13 @@ export function fitHarbourAsset(model, {x,z,radius,height}) {
  return group;
 }
 export function createHarbourAssets(scene,canvas,load) {
- const entries=[];let high=true;
+ const entries=[];let high=!globalThis.matchMedia?.('(any-pointer:coarse)').matches;
+ const start=e=>{if(e.started)return e.promise;e.started=true;e.promise=load(e.id).then(g=>{e.model=fitHarbourAsset(g.scene,e.placement);scene.add(e.model);sync();}).catch(error=>console.warn('Harbour asset fallback:',e.id,error.message));return e.promise;};
  const sync=()=>{for(const e of entries){e.fallback.visible=!high||!e.model;if(e.model)e.model.visible=high;}canvas.dataset.harbourAssets=String(entries.filter(e=>e.model).length);};
  return {
   add(id,fallback,placement){
-   const entry={fallback,model:null};entries.push(entry);
-   return load(id).then(g=>{entry.model=fitHarbourAsset(g.scene,placement);scene.add(entry.model);sync();}).catch(error=>{console.warn('Harbour asset fallback:',id,error.message);sync();});
+   const entry={id,placement,fallback,model:null,started:false};entries.push(entry);return high?start(entry):Promise.resolve();
   },
-  setQuality(value){high=value!=='low';sync();}
+  setQuality(value){high=value!=='low';const pending=high?entries.map(start):[];sync();return Promise.all(pending);}
  };
 }
