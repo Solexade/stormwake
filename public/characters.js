@@ -1,5 +1,5 @@
 import {heroById,storedHero,inPlaceClip,heroMaterial,soloAnimationAliases} from './heroes.js';
-import {combatPose} from './combat-presentation.js';
+import {combatPose,heroGait,strideTime,runningPlayback,travelYaw} from './combat-presentation.js';
 const aColor=(type,color)=>type==='player'?color:new THREE.Color(type==='boss'?'#9f717e':type==='archer'?'#789e89':'#ba8980').multiply(color);
 import * as THREE from './vendor/three.module.js';
 import {loadGLB} from './scene/assets.js';
@@ -38,6 +38,7 @@ export function dressWarrior(actor,canvas,requestedHero){
   // The authored right palm drives the existing selectable weapons.
   const palm=model.getObjectByName(sockets[1]);
   if(palm){const grip=new THREE.Group();model.updateMatrixWorld(true);const inherited=palm.getWorldScale(new THREE.Vector3()).x;grip.scale.setScalar(actor.scale/inherited);palm.add(grip);grip.add(actor.weapon);if(actor.bow){grip.add(actor.bow);actor.bow.position.set(0,0,0);actor.bow.rotation.set(0,0,-Math.PI/2);}actor.weapon.position.set(0,0,0);actor.weapon.rotation.set(0,0,Math.PI/2);}
+  actor.avatar.weaponGrip=actor.weapon.parent;
   const left=model.getObjectByName(sockets[2]);if(left){model.updateMatrixWorld(true);const grip=new THREE.Group();grip.scale.setScalar(actor.scale/left.getWorldScale(new THREE.Vector3()).x);left.add(grip);grip.add(actor.shield);actor.shield.position.set(0,0,0);actor.shield.rotation.set(0,Math.PI/2,0);}
   previous?.mount.removeFromParent();canvas.dataset.characters='rigged';if(detailed)canvas.dataset.hero=hero.id;
  }).catch(error=>{
@@ -48,36 +49,114 @@ export function dressWarrior(actor,canvas,requestedHero){
 }
 export function animateAvatar(a,s,dt){
  const v=a.avatar;if(!v)return;
- const pose=combatPose(s),key=[pose.state||pose.name,pose.key??''].join(':');
+ let pose=combatPose(s);
+ if(v.heroId&&s.weapon==='spear'&&['light1','light2','heavy','finisher','riposte'].includes(s.action))pose={name:'Idle_swordRight',hold:.15,state:'spear-thrust',key:s.actionId};
+ if(v.heroId&&heroById(v.heroId).asset==='hooded_blade.glb'&&s.weapon==='sword'&&['light1','light2','heavy','finisher','riposte'].includes(s.action))pose={name:'Idle_swordRight',hold:.15,state:'sword-cut',key:s.actionId};
+ if(pose.moving&&v.heroId)pose=heroGait(s,v.gait);
+ const key=[pose.state||pose.name,pose.key??''].join(':');
  if(v.key!==key){
   const old=v.current;let action=v.actions[pose.name]||v.actions[pose.fallback]||v.actions.Idle;
   if(action===old)action=v.actions[pose.name+':alternate']||action;
+  const phase=pose.moving&&v.wasMoving&&old?strideTime(old.time,old.getClip().duration,action.getClip().duration):0;
   action.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
+  if(pose.moving)action.time=phase;
   action.setLoop(pose.once?THREE.LoopOnce:THREE.LoopRepeat,pose.once?1:Infinity);action.clampWhenFinished=true;
   if(old&&old!==action)old.crossFadeTo(action,pose.once?.065:.14,false);
   v.current=action;v.key=key;
  }
+ v.wasMoving=!!pose.moving;v.gait=pose.moving?pose.name:null;
  const action=v.current;
- action.timeScale=pose.hold!==undefined?0:pose.duration?action.getClip().duration/pose.duration:pose.moving?Math.max(.65,Math.min(1.65,Math.hypot(s.vx||0,s.vy||0)/(s.sprinting?440:310))):1;
+ action.timeScale=pose.hold!==undefined?0:pose.duration?action.getClip().duration/pose.duration:pose.moving?pose.rate??Math.max(.65,Math.min(1.65,Math.hypot(s.vx||0,s.vy||0)/(s.sprinting?440:310))):1;
+ if(v.heroId&&pose.moving&&pose.name==='Run')action.timeScale=runningPlayback(Math.hypot(s.vx||0,s.vy||0),action.getClip().duration,s.sprinting);
  if(pose.hold!==undefined)action.time=action.getClip().duration*pose.hold;
  v.mixer.update(Math.min(dt,.1));
- // Presentation-only carbine brace. Mixer establishes the base pose each frame.
- if(s.weapon==='gun'){
-  const upper=v.model.getObjectByName('mixamorigRightArm');
-  const fore=v.model.getObjectByName('mixamorigRightForeArm');
-  const left=v.model.getObjectByName('mixamorigLeftArm');
-  const firing=['light1','light2','heavy','finisher'].includes(s.action);
-  const recoil=firing?Math.max(0,1-Math.abs((s.actionTime||0)-.08)/.12):0;
-  if(upper)upper.rotateZ(-.9-recoil*.08);
-  if(fore)fore.rotateY(-.65);
-  if(left)left.rotateZ(.65);
-  a.weapon.rotation.set(-.2,0,Math.PI/2);
+ // Locomotion faces travel, not a stale cursor/target bearing. Only the mesh
+ // mount turns; authoritative heading and attack direction remain unchanged.
+ if(v.heroId){
+  const yaw=pose.moving?travelYaw(s.vx||0,s.vy||0,a.root.rotation.y):0;
+  const current=v.mount.rotation.y-Math.PI;
+  const delta=Math.atan2(Math.sin(yaw-current),Math.cos(yaw-current));
+  v.mount.rotation.y=Math.PI+current+delta*(1-Math.exp(-Math.min(dt,.1)*24));
+ }
+ // Weapon-specific presentation; simulation remains the only hit authority.
+ const armedPose=v.heroId&&s.hp>0&&s.action!=='roll';
+ const firing=['light1','light2','heavy','finisher'].includes(s.action);
+ const shotAge=(s.actionTime||0)-.08;
+ const recoil=firing&&shotAge>=0?Math.max(0,1-shotAge/.14):0;
+ if(s.weapon==='gun'&&armedPose){
+  if(a.weapon.parent!==a.root)a.root.add(a.weapon);
+  a.weapon.position.set(.22,1.45,-.22+recoil*.045);
+  const aimYaw=-s.angle-Math.PI/2-a.root.rotation.y;
+  a.weapon.rotation.set(recoil*.045,aimYaw,0);
+  aimArm(v,'Right',a.weapon.localToWorld(new THREE.Vector3(0,-.09,.015)),a.root,1);
+  aimArm(v,'Left',a.weapon.localToWorld(new THREE.Vector3(0,-.03,-.38)),a.root,-1);
   a.shield.visible=false;
- }else{a.weapon.rotation.set(0,0,Math.PI/2);a.shield.visible=true;}
+ }else{
+  if(a.weapon.parent!==v.weaponGrip)v.weaponGrip.add(a.weapon);
+  a.weapon.position.set(0,0,0);a.weapon.rotation.set(0,0,Math.PI/2);
+  a.shield.visible=s.weapon!=='spear';
+  if(s.weapon==='sword'&&armedPose&&firing&&heroById(v.heroId).asset==='hooded_blade.glb'){
+   const phase=Math.min(1,(s.actionTime||0)/(s.actionDuration||1));
+   const cut=Math.sin(Math.PI*phase);
+   const reverse=s.action==='light2'?-1:1;
+   const heavy=s.action==='heavy'||s.action==='finisher';
+   aimArm(v,'Right',a.root.localToWorld(new THREE.Vector3(reverse*(.38-.76*phase),heavy?1.72-.62*cut:1.28+.12*Math.cos(phase*Math.PI),-.22-.45*cut)),a.root,1);
+  }
+  if(s.weapon==='spear'&&armedPose){
+   const phase=s.actionDuration?Math.min(1,(s.actionTime||0)/s.actionDuration):0;
+   const thrust=firing?Math.sin(Math.PI*Math.min(1,Math.max(0,(phase-.12)/.7))):0;
+   const right=a.root.localToWorld(new THREE.Vector3(.23,1.12,-.12-thrust*.48));
+   aimArm(v,'Right',right,a.root,1);
+   // Aim the shaft forward from its hand socket, with a slight upward tip.
+   a.weapon.updateWorldMatrix(true,false);
+   const forward=a.root.getWorldQuaternion(new THREE.Quaternion());
+   const shaft=forward.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-Math.PI/2+.10));
+   a.weapon.quaternion.copy(a.weapon.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(shaft));
+   aimArm(v,'Left',a.weapon.localToWorld(new THREE.Vector3(0,.42,0)),a.root,-1);
+  }
+ }
+ a.weapon.visible=!(s.weapon==='gun'&&!armedPose);
+ if(a.gun?.userData.flash)a.gun.userData.flash.visible=s.weapon==='gun'&&armedPose&&firing&&shotAge>=0&&shotAge<.055;
  a.cape.rotation.copy(v.capeRotation);a.cape.rotation.x+=Math.sin(v.mixer.time*3)*.025;
  // Local pose accents leave the actor's world position and controls untouched.
  const accent=s.action==='light2'?.18:s.stagger>0?-.12:0;
  v.mount.rotation.z+=(accent-v.mount.rotation.z)*(1-Math.exp(-dt*20));
  if(v.heroId){const phase=s.actionDuration?Math.min(1,(s.actionTime||0)/s.actionDuration):0;v.mount.rotation.x=s.action==='roll'&&heroById(v.heroId).asset!=='azure_champion.glb'?-Math.PI*2*phase:0;if(s.hp<=0&&v.heroId==='hood')v.mount.rotation.z=1.35;}
- v.model.traverse(n=>{if(n.isMesh)for(const m of Array.isArray(n.material)?n.material:[n.material]){m.emissive.set(s.flash>0?'#c47132':'#000000');m.emissiveIntensity=s.flash>0?.65:0;}});
+ v.model.traverse(n=>{if(n.isMesh)for(const m of Array.isArray(n.material)?n.material:[n.material]){if(!m.emissive)continue;m.emissive.set(s.flash>0?'#c47132':'#000000');m.emissiveIntensity=s.flash>0?.65:0;}});
+}
+
+
+// Two-bone grip solver in world space. It respects each imported rig's limb
+// lengths and joint axes instead of applying guessed Euler rotations.
+export function aimJoint(bone,child,target){
+ if(!bone||!child)return;
+ bone.updateWorldMatrix(true,true);
+ const origin=bone.getWorldPosition(new THREE.Vector3());
+ const from=child.getWorldPosition(new THREE.Vector3()).sub(origin).normalize();
+ const to=target.clone().sub(origin).normalize();
+ if(to.lengthSq()<.001)return;
+ const desired=new THREE.Quaternion().setFromUnitVectors(from,to).multiply(bone.getWorldQuaternion(new THREE.Quaternion()));
+ bone.quaternion.copy(bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(desired));
+ bone.updateWorldMatrix(false,true);
+}
+function aimArm(v,side,target,root,sign){
+ const upper=v.model.getObjectByName('mixamorig'+side+'Arm');
+ const fore=v.model.getObjectByName('mixamorig'+side+'ForeArm');
+ const hand=v.model.getObjectByName('mixamorig'+side+'Hand');
+ if(!upper||!fore||!hand)return;
+ v.model.updateWorldMatrix(true,true);
+ const shoulder=upper.getWorldPosition(new THREE.Vector3());
+ const elbow=fore.getWorldPosition(new THREE.Vector3());
+ const palm=hand.getWorldPosition(new THREE.Vector3());
+ const l1=shoulder.distanceTo(elbow),l2=elbow.distanceTo(palm);
+ const direction=target.clone().sub(shoulder);
+ const distance=Math.max(Math.abs(l1-l2)+.001,Math.min(l1+l2-.001,direction.length()));
+ direction.normalize();
+ const pole=new THREE.Vector3(sign*.5,-1,.15).applyQuaternion(root.getWorldQuaternion(new THREE.Quaternion()));
+ pole.addScaledVector(direction,-pole.dot(direction)).normalize();
+ const along=(l1*l1-l2*l2+distance*distance)/(2*distance);
+ const bend=Math.sqrt(Math.max(0,l1*l1-along*along));
+ const goal=shoulder.clone().addScaledVector(direction,along).addScaledVector(pole,bend);
+ aimJoint(upper,fore,goal);
+ aimJoint(fore,hand,shoulder.clone().addScaledVector(direction,distance));
 }

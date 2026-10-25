@@ -25,3 +25,33 @@ test('Solo variants use their own rig and steel chains select distinct authored 
  const map=soloAnimationAliases('azure');assert.equal(new Set(['light1','light2','heavy'].map(action=>map[combatPose({hp:100,action}).name])).size,3);
  assert.equal(map.Roll_sword,'roll');assert.equal(map.Run,'sprint_loop');
 });
+
+import {heroGait,strideTime} from '../public/combat-presentation.js';
+test('hero gaits match speed without changing simulation or combat priorities',()=>{
+ const s={hp:100,vx:310,vy:0,sprinting:false},before={...s};
+ assert.deepEqual(heroGait(s),{name:'Run',moving:true,rate:310/440});
+ assert.equal(heroGait({...s,vx:90}).name,'Walking');
+ assert.equal(heroGait({...s,vx:440,sprinting:true}).name,'Run');
+ assert.equal(heroGait({...s,vx:160},'Jog').name,'Jog');
+ assert.equal(heroGait({...s,vx:160},'Walking').name,'Walking');
+ assert.equal(heroGait({...s,vx:0,vy:310}).rate,310/440);
+ assert.deepEqual(s,before);
+ for(const id of ['azure','frost','ash','hood'])assert.equal(soloAnimationAliases(id).Jog,'jog_fwd_loop');
+ assert.equal(combatPose({...s,guard:true}).state,'guard');
+ assert.equal(combatPose({...s,vx:0}).name,'Idle_swordRight');
+});
+test('gait transition preserves stride phase across different clip durations',()=>{
+ assert.ok(Math.abs(strideTime(.3,.6,1)-.5)<1e-10);
+ assert.ok(Math.abs(strideTime(.9,.6,1)-.5)<1e-10);
+ assert.equal(strideTime(1,0,1),0);
+});
+
+import {runningPlayback,travelYaw} from '../public/combat-presentation.js';
+test('running cadence follows scene distance and facing follows travel',()=>{
+ const rate=runningPlayback(310,.708333,false);
+ assert.ok(rate>1.5&&rate<1.7);
+ assert.ok(Math.abs(3.4*rate/.708333-310/40)<1e-9);
+ assert.ok(Math.abs(travelYaw(310,0,-Math.PI/2))<1e-9);
+ assert.ok(Math.abs(travelYaw(0,310,-Math.PI/2)+Math.PI/2)<1e-9);
+ assert.ok(Number.isFinite(runningPlayback(0,0)));
+});

@@ -21,6 +21,6 @@ export function heroMaterial(source,id){const m=source.clone();if(id==='frost')m
 // Match animation names to the underlying rig, including cosmetic variants.
 export function soloAnimationAliases(id){
  const steel=heroById(id).asset==='azure_champion.glb';
- return steel?{Idle:'sword_idle',Idle_swordRight:'sword_idle',Idle_swordLeft:'sword_idle',Walking:'walk_loop',Run:'sprint_loop',Run_swordAttack:'sword_regular_a',ComboFollowup:'sword_regular_b',HeavyStrike:'sword_regular_c',FinisherStrike:'sword_regular_c',swordAttackJump:'sword_regular_b',Roll_sword:'roll',Death:'death',HitReaction:'hit_chest'}:
- {Idle:'idle',Idle_swordRight:'idle',Idle_swordLeft:'idle',Walking:'walk_loop',Run:'sprint_loop',Run_swordAttack:'punch_jab',ComboFollowup:'kick',HeavyStrike:'kick',FinisherStrike:'kick',swordAttackJump:'kick',Roll_sword:'jog_fwd_loop',Death:'idle',HitReaction:'idle'};
+ return steel?{Idle:'sword_idle',Idle_swordRight:'sword_idle',Idle_swordLeft:'sword_idle',Walking:'walk_loop',Jog:'jog_fwd_loop',Run:'sprint_loop',Run_swordAttack:'sword_regular_a',ComboFollowup:'sword_regular_b',HeavyStrike:'sword_regular_c',FinisherStrike:'sword_regular_c',swordAttackJump:'sword_regular_b',Roll_sword:'roll',Death:'death',HitReaction:'hit_chest'}:
+ {Idle:'idle',Idle_swordRight:'idle',Idle_swordLeft:'idle',Walking:'walk_loop',Jog:'jog_fwd_loop',Run:'sprint_loop',Run_swordAttack:'punch_jab',ComboFollowup:'kick',HeavyStrike:'kick',FinisherStrike:'kick',swordAttackJump:'kick',Roll_sword:'jog_fwd_loop',Death:'idle',HitReaction:'idle'};
 }
