@@ -1,0 +1,22 @@
+{
+  "authors": {
+    "Rob Tuytel": "All"
+  },
+  "files": [
+    {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/coast_sand_01/coast_sand_01_diff_1k.jpg",
+      "size": 960614,
+      "md5": "a1e243fc8635806381505c7dc44b192a"
+    },
+    {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/coast_sand_01/coast_sand_01_nor_gl_1k.jpg",
+      "size": 1146826,
+      "md5": "38bbe6863249a3d20d8417c9db207780"
+    },
+    {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/coast_sand_01/coast_sand_01_rough_1k.jpg",
+      "size": 383892,
+      "md5": "978aca9e374cf988095392a91d3a4f71"
+    }
+  ]
+}

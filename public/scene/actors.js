@@ -34,20 +34,8 @@ export function createActorFactory({scene,mats,box,ball,cylinder,beam,mesh,form,
   // Axe and round shield are carried by animated joints.
   const weapon=new THREE.Group();weapon.position.set(0,-.3,0);weapon.rotation.x=-.15;arms[1].elbow.add(weapon);cylinder(mats.wood,0,.23,0,.024,.027,1.0,weapon);
   const axeShape=new THREE.Shape();axeShape.moveTo(.025,.45);axeShape.lineTo(.25,.60);axeShape.quadraticCurveTo(.39,.33,.24,.17);axeShape.lineTo(.025,.28);axeShape.closePath();const axe=mesh(new THREE.ExtrudeGeometry(axeShape,{depth:.045,bevelEnabled:true,bevelThickness:.015,bevelSize:.008,bevelSegments:1}),mats.steel,0,0,-.023,weapon);box(mats.gold,0,.35,0,.08,.13,.075,weapon);
-  const axeParts=[...weapon.children];const gun=new THREE.Group();weapon.add(gun);// Original locally built rifle silhouette: stock, receiver, handguard,
-  // curved magazine, barrel and iron sights. No external weapon asset.
-  box(mats.metal,0,0,-.12,.105,.12,.36,gun);
-  box(mats.wood,0,-.015,.18,.09,.13,.26,gun);
-  box(mats.leather,0,-.045,.32,.11,.16,.035,gun);
-  const grip=box(mats.leather,0,-.13,.015,.075,.18,.07,gun);grip.rotation.x=-.22;
-  box(mats.wood,0,.005,-.39,.11,.11,.22,gun);
-  const barrel=cylinder(mats.steel,0,.015,-.65,.022,.022,.34,gun,12);barrel.rotation.x=Math.PI/2;
-  const gas=cylinder(mats.metal,0,.065,-.48,.012,.012,.25,gun,10);gas.rotation.x=Math.PI/2;
-  for(let i=0;i<4;i++){const mag=box(mats.metal,0,-.11-i*.045,-.16-i*i*.006,.075,.065,.12,gun);mag.rotation.x=-i*.12;}
-  box(mats.metal,0,.105,-.73,.025,.07,.025,gun);
-  box(mats.metal,0,.085,-.08,.06,.045,.025,gun);
-  const flash=mesh(new THREE.ConeGeometry(.075,.23,6),new THREE.MeshBasicMaterial({color:'#ffd28a',transparent:true,opacity:.85,depthWrite:false}),0,.015,-.9,gun);flash.rotation.x=-Math.PI/2;flash.visible=false;gun.userData.flash=flash;
-gun.visible=false;const sword=new THREE.Group();weapon.add(sword);box(mats.steel,0,.38,0,.075,.95,.04,sword);box(mats.gold,0,-.04,0,.33,.06,.08,sword);cylinder(mats.leather,0,-.18,0,.035,.035,.25,sword);const spear=new THREE.Group();weapon.add(spear);cylinder(mats.wood,0,.35,0,.025,.025,1.9,spear);mesh(new THREE.ConeGeometry(.09,.36,4),mats.steel,0,1.46,0,spear);sword.visible=spear.visible=false;
+  const axeParts=[...weapon.children];const gun=new THREE.Group();weapon.add(gun);// Retired weapon keeps an empty compatibility group; no rifle meshes are built.
+  gun.visible=false;const sword=new THREE.Group();weapon.add(sword);box(mats.steel,0,.38,0,.075,.95,.04,sword);box(mats.gold,0,-.04,0,.33,.06,.08,sword);cylinder(mats.leather,0,-.18,0,.035,.035,.25,sword);const spear=new THREE.Group();weapon.add(spear);cylinder(mats.wood,0,.35,0,.025,.025,1.9,spear);mesh(new THREE.ConeGeometry(.09,.36,4),mats.steel,0,1.46,0,spear);sword.visible=spear.visible=false;
   const shield=new THREE.Group();shield.position.set(-.10,-.15,-.04);arms[0].elbow.add(shield);const shieldFace=cylinder(mats.wood,0,0,0,.33,.33,.08,shield,24);shieldFace.rotation.x=Math.PI/2;const edge=mesh(new THREE.TorusGeometry(.33,.026,7,32),mats.metal,0,0,-.05,shield);ball(mats.metal,0,0,-.074,.08,.08,.04,shield);for(let i=0;i<12;i++){const a=i*Math.PI/6;ball(mats.gold,Math.sin(a)*.27,Math.cos(a)*.27,-.048,.013,.013,.016,shield);}
   let bow=null;if(archer){weapon.visible=false;bow=mesh(new THREE.TorusGeometry(.35,.021,5,20,Math.PI),mats.wood,0,-.1,0,arms[1].elbow);bow.rotation.z=-Math.PI/2;}
   if(boss){weapon.scale.set(1.7,1.4,1.7);shield.visible=false;for(const side of [-1,1]){beam(new THREE.Vector3(side*.12,1.97,0),new THREE.Vector3(side*.26,2.25,.015),.035,mats.gold,rig);}}

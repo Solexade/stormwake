@@ -1,0 +1,22 @@
+{
+  "authors": {
+    "Amal Kumar": "All"
+  },
+  "files": [
+    {
+      "size": 955945,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/sparse_grass/sparse_grass_diff_1k.jpg",
+      "md5": "5d0aba796e1b5882555161c16b10ee9d"
+    },
+    {
+      "size": 1440314,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/sparse_grass/sparse_grass_nor_gl_1k.jpg",
+      "md5": "3307e6ce47413c6b4e85885d4b8ae932"
+    },
+    {
+      "size": 463340,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/sparse_grass/sparse_grass_rough_1k.jpg",
+      "md5": "acf2fd7e352e7635f67f24ecda01e485"
+    }
+  ]
+}

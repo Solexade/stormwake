@@ -27,7 +27,8 @@ const arcadeStore=sqliteRooms(db);const serveArcade=serialized((p,route,b,method
 const runs=new Map();const rates=new Map();
 const digest=x=>createHash('sha256').update(x).digest('hex');
 const json=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
-function profile(p){return {id:p.id,name:p.name,salvage:p.salvage,wins:p.wins,best:p.best,contribution:p.contribution,usernameCreated:!!p.username_created,gear:JSON.parse(p.gear||'{}'),potions:p.potions};}
+function meleeGear(g){return g.weapon==='gun'?{...g,weapon:'axe'}:g;}
+function profile(p){return {id:p.id,name:p.name,salvage:p.salvage,wins:p.wins,best:p.best,contribution:p.contribution,usernameCreated:!!p.username_created,gear:meleeGear(JSON.parse(p.gear||'{}')),potions:p.potions};}
 function state(p){return {player:profile(p),shop:SHOP_ITEMS,world:{salvage:db.prepare('SELECT salvage FROM world WHERE id=1').get().salvage,target:1500},leaderboard:db.prepare('SELECT name,best,wins,contribution FROM players WHERE wins>0 ORDER BY best DESC,wins DESC LIMIT 10').all(),run:runs.has(p.id)?snapshot(runs.get(p.id)):null};}
 const fresh=id=>db.prepare('SELECT * FROM players WHERE id=?').get(id);
 function safeSession(p){const s=runs.get(p.id);return !s||s.status!=='active'||s.inSafehouse;}
@@ -132,7 +133,7 @@ const server=http.createServer(async(req,res)=>{
     files['/vendor/BufferGeometryUtils.js']='vendor/BufferGeometryUtils.js';files['/adventure.js']='adventure.js';files['/movement-preview.js']='movement-preview.js';
     files['/motion.js']='motion.js';files['/realism.js']='realism.js';files['/vendor/HDRLoader.js']='vendor/HDRLoader.js';
     for(const file of ['mobile-controls.js','mobile-polish.css','sample-mixer.js','audio-manifest.js','audio-controls.js','audio-controls.css','audio-credits.html','cinematic.js','combat-presentation.js','audio.js','characters.js','heroes.js','hero-choice.js','storm-theme.css','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
-    for(const name of ['actors','environment','lighting','harbour','quality','palette','assets','asset-cache'])files['/scene/'+name+'.js']='scene/'+name+'.js';
+    for(const name of ['actors','environment','lighting','harbour','quality','palette','assets','asset-cache','sunken-isles','harbour-terrain','harbour-refurbish'])files['/scene/'+name+'.js']='scene/'+name+'.js';
     files['/asset-manifest.js']='asset-manifest.js';
     for(const name of ['config','state','input','movement','hitboxes','combat','rounds','ai','engine','client','view','fighters','environment','catalog','preview','audio'])files['/arcade/'+name+'.js']='arcade/'+name+'.js';
     files['/arcade']='arcade.html';files['/arcade.html']='arcade.html';files['/arcade/style.css']='arcade/style.css';files['/arcade/landing.css']='arcade/landing.css';

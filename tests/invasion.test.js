@@ -1,11 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRun,setInput,tick,weaponAttack} from '../public/combat.js';
-test('carbine is ranged and never lunges; one shot cannot hit every bot',()=>{
- const s=createRun('gun');Object.assign(s.player,{x:930,y:1100,weapon:'gun',angle:0});s.enemies.forEach(e=>e.hp=0);Object.assign(s.enemies[0],{x:1040,y:1100,hp:80});Object.assign(s.enemies[1],{x:1090,y:1100,hp:80});
- const a=weaponAttack(s.player,'light1');assert.equal(a.lunge,0);assert.equal(a.range,480);
- setInput(s,{attack:true,angle:0},100);tick(s,.05,100);tick(s,.05,150);tick(s,.05,200);
- assert.ok(s.enemies[0].hp<80);assert.equal(s.enemies[1].hp,80);assert.ok(s.effects.some(e=>e.type==='pulse'));assert.ok(s.player.stamina<100);
+import {WEAPONS} from '../public/catalog.js';
+import {snapshot} from '../public/combat.js';
+test('retired gun maps to axe without losing an existing expedition',()=>{
+ assert.deepEqual(Object.keys(WEAPONS).sort(),['axe','spear','sword']);
+ const s=createRun('legacy',100,{gear:{weapon:'gun',armour:2}});
+ assert.equal(s.player.weapon,'axe');
+ Object.assign(s.player,{weapon:'gun',hp:64,action:'heavy',actionTime:.03});
+ s.score=125;s.salvage=40;s.paused=true;
+ const saved=snapshot(s);
+ assert.equal(saved.player.weapon,'axe');assert.equal(saved.player.action,'idle');
+ assert.equal(saved.player.hp,64);assert.equal(saved.score,125);assert.equal(saved.salvage,40);
+ assert.equal(saved.paused,true);assert.equal(saved.player.maxHp,160);
 });
 import {walkable} from '../public/world.js';
 test('campaign deploys from saved victories with walkable chapter starts',()=>{

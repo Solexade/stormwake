@@ -3,7 +3,7 @@ import {createRun,tick,snapshot,setInput,chooseRelic,applyLoadout} from '../publ
 import {SHOP_ITEMS,WEAPONS,SAFEHOUSE,FORGE,SUPPLIES,near,safeArea} from '../public/catalog.js';
 export const digest=x=>createHash('sha256').update(x).digest('hex');
 export const newProfile=()=>({id:randomUUID(),name:'Wanderer '+randomBytes(2).toString('hex').toUpperCase(),wallet:null,usernameCreated:false,salvage:0,wins:0,best:0,contribution:0,gear:{},potions:1,checkin:null,created:Date.now(),run:null});
-const publicProfile=p=>Object.fromEntries(['id','name','usernameCreated','salvage','wins','best','contribution','gear','potions'].map(k=>[k,p[k]]));
+const publicProfile=p=>Object.fromEntries(['id','name','usernameCreated','salvage','wins','best','contribution','gear','potions'].map(k=>[k,k==='gear'&&p.gear?.weapon==='gun'?{...p.gear,weapon:'axe'}:p[k]]));
 const safe=p=>!p.run||p.run.status!=='active'||p.run.inSafehouse;
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 export async function persist(c,p){await c.query('UPDATE stormwake_profiles SET wallet=$2,name=$3,best=$4,wins=$5,doc=$6 WHERE id=$1',[p.id,p.wallet,p.name,p.best,p.wins,JSON.stringify(p)]);}

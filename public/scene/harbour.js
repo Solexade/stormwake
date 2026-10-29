@@ -87,24 +87,44 @@ export function dressCottage(group,{box,mats}) {
 
 // Real locally hosted assets. Keep the old visual until the replacement is ready.
 // Radius fitting is conservative: imported geometry never enlarges a collider.
-export function fitHarbourAsset(model, {x,z,radius,height}) {
+export function fitHarbourAsset(model, {x,z,radius,height,y=0,angle=0}) {
  model.updateMatrixWorld(true);
  const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3());
- if(!Number.isFinite(size.y)||size.y<=0)throw Error('Invalid prop bounds');
- const scale=radius?radius/Math.hypot(size.x/2,size.z/2):height/size.y;
- const group=new THREE.Group();group.add(model);model.position.sub(bounds.getCenter(new THREE.Vector3()));model.position.y=-bounds.min.y;
- group.scale.setScalar(scale);group.position.set(x,0,z);
+ if(![x,z,y,angle,...size.toArray()].every(Number.isFinite)||size.y<=0||size.x<=0||size.z<=0)throw Error('Invalid prop bounds');
+ if(!(radius>0||height>0))throw Error('Missing prop size');
+ const scale=Math.min(radius>0?radius/Math.hypot(size.x/2,size.z/2):Infinity,height>0?height/size.y:Infinity);
+ const group=new THREE.Group();group.add(model);model.position.sub(bounds.getCenter(new THREE.Vector3()));model.position.y-=bounds.min.y-bounds.getCenter(new THREE.Vector3()).y;
+ group.scale.setScalar(scale);group.position.set(x,y,z);group.rotation.y=angle;
  model.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;}});
  return group;
 }
-export function createHarbourAssets(scene,canvas,load) {
+export function createHarbourAssets(scene,canvas,load,onReady=()=>{}) {
  const entries=[];let high=!globalThis.matchMedia?.('(any-pointer:coarse)').matches;
- const start=e=>{if(e.started)return e.promise;e.started=true;e.promise=load(e.id).then(g=>{e.model=fitHarbourAsset(g.scene,e.placement);scene.add(e.model);sync();}).catch(error=>console.warn('Harbour asset fallback:',e.id,error.message));return e.promise;};
- const sync=()=>{for(const e of entries){e.fallback.visible=!high||!e.model;if(e.model)e.model.visible=high;}canvas.dataset.harbourAssets=String(entries.filter(e=>e.model).length);};
+ const sync=()=>{
+  for(const e of entries){e.fallback.visible=!high||!e.model;if(e.model)e.model.visible=high;}
+  canvas.dataset.harbourAssets=String(entries.filter(e=>e.model).length);
+  canvas.dataset.harbourPending=String(entries.filter(e=>e.pending).length);
+  canvas.dataset.harbourFailures=String(entries.filter(e=>e.error).length);
+  canvas.dataset.harbourLoadMs=String(Math.round(Math.max(0,...entries.map(e=>e.duration||0))));
+ };
+ const start=e=>{
+  if(e.model)return Promise.resolve();
+  if(e.pending)return e.pending;
+  e.error=null;const began=performance.now();
+  e.pending=Promise.resolve().then(()=>load(e.id)).then(g=>{
+   const model=fitHarbourAsset(g.scene,e.placement);
+   // Prepare before publishing so a failed preparation cannot leave a duplicate.
+   onReady(model);e.model=model;scene.add(model);
+  }).catch(error=>{e.error=String(error?.message||error);console.warn('Harbour asset fallback:',e.id,e.error);})
+  .finally(()=>{e.duration=performance.now()-began;e.pending=null;sync();});
+  sync();return e.pending;
+ };
  return {
   add(id,fallback,placement){
-   const entry={id,placement,fallback,model:null,started:false};entries.push(entry);return high?start(entry):Promise.resolve();
+   if(entries.some(e=>e.fallback===fallback))throw Error('Fallback already registered');
+   const entry={id,placement,fallback,model:null,pending:null,error:null};entries.push(entry);sync();return high?start(entry):Promise.resolve();
   },
-  setQuality(value){high=value!=='low';const pending=high?entries.map(start):[];sync();return Promise.all(pending);}
+  setQuality(value){high=value!=='low';const pending=high?entries.map(start):[];sync();return Promise.all(pending);},
+  retry(){return high?Promise.all(entries.filter(e=>e.error).map(start)):Promise.resolve();}
  };
 }

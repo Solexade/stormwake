@@ -77,7 +77,13 @@ move(p,Math.cos(p.angle)*a.lunge,Math.sin(p.angle)*a.lunge);p.slash=.18;const li
  if(first&&s.relic==='storm'){const other=living.find(e=>e!==first&&e.hp>0&&distance(e,first)<185);if(other){hitEnemy(s,other,18);effect(s,'arc',first.x,first.y,.3,{tx:other.x,ty:other.y});}}
  if(p.action==='finisher'){effect(s,'finisher',p.x,p.y,.55,{angle:p.angle});event(s,'finisher',{hit:!!first});}
 }
+export function retireGun(s){
+ if(s?.player?.weapon!=='gun')return;
+ const p=s.player;p.weapon='axe';p.action='idle';p.actionTime=0;p.actionDuration=0;p.combo=0;p.comboWindow=0;
+ s.buffer=null;s.effects=(s.effects||[]).filter(e=>e.type!=='pulse');
+}
 export function tick(s,dt,now=Date.now()){
+ retireGun(s);
  if(s.status!=='active')return;dt=clamp(dt,0,.06);const p=s.player;
  if(s.inSafehouse||s.paused){p.vx=p.vy=0;s.input={};s.commands={};s.held={};return;}
  p.powerTime=Math.max(0,(p.powerTime||0)-dt);if(!p.powerTime)p.powerup=null;p.riposteWindow=Math.max(0,(p.riposteWindow||0)-dt);
@@ -127,4 +133,4 @@ export function tick(s,dt,now=Date.now()){
  if(s.status==='active'&&input.interact&&s.bossDead&&distance(p,HOME)<115){s.status='won';s.score+=Math.max(0,Math.round(300-s.elapsed*.45));event(s,'extracted');}
  if(s.status==='active'&&s.elapsed>=720){s.status='expired';event(s,'expired');}
 }
-export function snapshot(s){const {input,lastInputAt,started,held,commands,commandIds,buffer,...out}=s;return out;}
+export function snapshot(s){retireGun(s);const {input,lastInputAt,started,held,commands,commandIds,buffer,...out}=s;return out;}

@@ -20,3 +20,16 @@ export function bindMovementPad(element,onIntent){
  element.onpointerup=element.onpointercancel=element.onlostpointercapture=e=>{if(e.pointerId===pointer)reset();};
  return reset;
 }
+
+// Direction selection only; damage, turn speed and hit timing stay server-owned.
+export function meleeAim({dx=0,dy=0,angle=0,pointerAngle=null,lockedAngle=null,assist=false,player,enemies=[]}){
+ if(Number.isFinite(lockedAngle))return lockedAngle;
+ if(Number.isFinite(pointerAngle))return pointerAngle;
+ if(Math.hypot(dx,dy)>.2)return Math.atan2(dy,dx);
+ if(!assist||!player)return angle;
+ let nearest=null,best=240;
+ for(const e of enemies){if(e.hp<=0)continue;const distance=Math.hypot(e.x-player.x,e.y-player.y),bearing=Math.atan2(e.y-player.y,e.x-player.x),delta=Math.atan2(Math.sin(bearing-angle),Math.cos(bearing-angle));
+  if(distance<best&&Math.abs(delta)<=Math.PI/2){nearest=bearing;best=distance;}
+ }
+ return nearest??angle;
+}

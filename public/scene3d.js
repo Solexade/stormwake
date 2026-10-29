@@ -23,8 +23,9 @@ export function createWorld(canvas){
  const scene=new THREE.Scene();scene.background=new THREE.Color(PALETTE.fog);scene.fog=new THREE.FogExp2(PALETTE.fog,PALETTE.fogDensity);
  const camera=new THREE.PerspectiveCamera(48,1,.08,190);const look=new THREE.Vector3(HOME.x*S,1,HOME.y*S);let first=true,mode='follow',quality=initialQuality(mobile);
  const {sun,sky,skyMaterial,environment}=createLighting(renderer,scene);
- const {harbourAssets,mats,box,ball,cylinder,beam,mesh,form,batchStatic,boat,chest,crystal,shrineLight,beaconFlame,beaconLight,flames,waterMaterial,foliage,pennants,motes,buildings,grass,contactMaterial,materials}=createEnvironment(renderer,scene,canvas,sky);
+ const {sceneryVisibility,harbourAssets,mats,box,ball,cylinder,beam,mesh,form,batchStatic,boat,chest,crystal,shrineLight,beaconFlame,beaconLight,flames,waterMaterial,foliage,pennants,motes,buildings,grass,harbourPlants,contactMaterial,materials}=createEnvironment(renderer,scene,canvas,sky);
  const shore=createHarbourShore(scene),meter=createFrameMeter();
+ const metricsFrustum=new THREE.Frustum(),metricsMatrix=new THREE.Matrix4();
  materials.ready.then(()=>{if(scene.environment!==environment.texture)environment.dispose();});
  const warrior=createActorFactory({scene,mats,box,ball,cylinder,beam,mesh,form,batchStatic,contactMaterial,canvas});
  let orbit=0;
@@ -82,6 +83,7 @@ export function createWorld(canvas){
    const goal=run.bossDead?HOME:run.relic?BOSS:SHRINE;targetRune.position.set(goal.x*S,.28,goal.y*S);targetRune.scale.setScalar(1+Math.sin(t*2)*.06);
   }
   const heroPoint=new THREE.Vector3(px,1.25,pz),sight=heroPoint.clone().sub(camera.position),sightDistance=sight.length();occlusionRay.set(camera.position,sight.normalize());occlusionRay.far=Math.max(0,sightDistance-.4);
+  canvas.dataset.sceneryOccluded=String(sceneryVisibility.update(camera,heroPoint,dt,playing));
   for(const building of buildings){const obstructs=playing&&occlusionRay.intersectObject(building.group,true).length>0;building.opacity+=((obstructs?.18:1)-building.opacity)*(1-Math.exp(-dt*14));for(const [source,material] of building.materials){for(const slot of ['map','normalMap','roughnessMap','bumpMap'])if(material[slot]!==source[slot]){material[slot]=source[slot];material.needsUpdate=true;}material.color.copy(source.color);if(material.normalScale&&source.normalScale)material.normalScale.copy(source.normalScale);material.transparent=true;material.opacity=building.opacity;material.depthWrite=building.opacity>.95;}building.group.traverse(n=>{if(n.isMesh)n.castShadow=building.opacity>.95;});}
   cinema.render(scene,camera,qualityPreset(quality).bloom);hud.clearRect(0,0,w,h);
   if(playing&&run){
@@ -109,8 +111,11 @@ export function createWorld(canvas){
   first=false;
   meter.end(performance.now()-frameStart);
   if(!canvas.dataset.metricsAt||performance.now()-Number(canvas.dataset.metricsAt)>1000){
+    metricsFrustum.setFromProjectionMatrix(metricsMatrix.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));let visibleMeshes=0,visibleInstances=0;
+    scene.traverseVisible(object=>{if(object.isMesh&&(!object.frustumCulled||metricsFrustum.intersectsObject(object))){visibleMeshes++;visibleInstances+=object.isInstancedMesh?object.count:1;}});
+    canvas.dataset.visibleMeshes=String(visibleMeshes);canvas.dataset.visibleInstances=String(visibleInstances);canvas.dataset.pixelRatio=String(renderer.getPixelRatio());
     const measured=meter.read();canvas.dataset.frameP95Ms=measured.frame.p95Ms.toFixed(2);canvas.dataset.cpuP95Ms=measured.cpu.p95Ms.toFixed(2);canvas.dataset.frameSamples=String(measured.frame.samples);canvas.dataset.metricsAt=String(performance.now());canvas.dataset.graphicsQuality=quality;
   }
  }
- return {draw,aimAt,setOrbit(value){orbit=value;},setMode(value){mode=value;},setQuality(value){quality=value==='low'?'low':'high';harbourAssets.setQuality(quality);const preset=qualityPreset(quality);renderer.setPixelRatio(Math.min(devicePixelRatio,preset.pixelRatio));renderer.shadowMap.enabled=preset.shadows;grass.visible=preset.foliage;meter.reset();resize();},getInfo(){return {engine:'Three.js',revision:THREE.REVISION,quality,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,...meter.read()};}};
+ return {draw,aimAt,setOrbit(value){orbit=value;},setMode(value){mode=value;},setQuality(value){quality=value==='low'?'low':'high';harbourAssets.setQuality(quality);const preset=qualityPreset(quality);renderer.setPixelRatio(Math.min(devicePixelRatio,preset.pixelRatio));renderer.shadowMap.enabled=preset.shadows;grass.visible=preset.foliage;harbourPlants.visible=preset.foliage;meter.reset();resize();},getInfo(){return {engine:'Three.js',revision:THREE.REVISION,quality,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,...meter.read()};}};
 }

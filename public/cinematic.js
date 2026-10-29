@@ -9,7 +9,7 @@ export function cinematicPass(renderer){
  void main(){vec3 c=texture2D(source,uvScreen).rgb;vec3 glow=vec3(0.);
  for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){vec3 n=texture2D(source,uvScreen+vec2(float(x),float(y))*pixel*3.).rgb;glow+=max(n-vec3(bloomThreshold),vec3(0.))/9.;}
  c+=glow*bloomStrength;float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,saturation);
- c*=mix(vec3(.97,1.,1.025),vec3(1.025,1.005,.975),smoothstep(.1,1.5,l));
+ c*=mix(vec3(.995,1.,1.005),vec3(1.01,1.005,.99),smoothstep(.1,1.5,l));
  gl_FragColor=vec4(c,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
