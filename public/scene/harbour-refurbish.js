@@ -69,9 +69,9 @@ export const HARBOUR_ROCKS=Object.freeze([
  {x:4.8,z:30.3,radius:.8,height:1.1,y:-.65,angle:.4},
  {x:4.3,z:33.5,radius:.85,height:1.2,y:-.65,angle:1.7},
  {x:4.3,z:36.5,radius:.8,height:1,y:-.68,angle:2.6},
- {x:6.8,z:41.1,radius:.7,height:1,y:-.7,angle:.7},
- {x:12,z:43.7,radius:.85,height:1.2,y:-.65,angle:2.1},
- {x:17.5,z:43,radius:.8,height:1.05,y:-.65,angle:3.4},
+ {x:3.4,z:43,radius:.7,height:1,y:-.7,angle:.7},
+ {x:12,z:59,radius:.85,height:1.2,y:-.65,angle:2.1},
+ {x:17.5,z:59,radius:.8,height:1.05,y:-.65,angle:3.4},
 ]);
 export function dressHarbourDock({box,beam,mats,scene}){
  const group=new THREE.Group();group.name='Harbour jetty structural details';scene.add(group);

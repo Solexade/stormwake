@@ -1,3 +1,4 @@
+import {HOMES,REGIONS} from '../voyage-data.js';
 import {coastalShelfGeometry,createHarbourPlanting,finishTimberHouse,HARBOUR_ROCKS,dressHarbourDock} from './harbour-refurbish.js';
 import {createHarbourTerrain} from './harbour-terrain.js';
 import {coastTexture,coastGLSL,CLIFF_PLACEMENTS,createSceneryVisibility} from './sunken-isles.js';
@@ -65,9 +66,9 @@ export function createEnvironment(renderer,scene,canvas,sky){
   for(const nodes of groups.values()){if(nodes.length<2)continue;const inverse=new THREE.Matrix4().copy(root.matrixWorld).invert();const geometries=nodes.map(n=>n.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse,n.matrixWorld)));const merged=mergeGeometries(geometries,false);geometries.forEach(g=>g.dispose());if(!merged)continue;const m=new THREE.Mesh(merged,nodes[0].material);m.castShadow=nodes.some(n=>n.castShadow);m.receiveShadow=true;root.add(m);nodes.forEach(n=>n.removeFromParent());}
  }
  // Solid land masses, with visible coastal cliffs rather than flat map cut-outs.
- for(const p of LAND){const sh=new THREE.Shape(p.map(([x,z])=>new THREE.Vector2(x*S,-z*S)));const g=new THREE.ExtrudeGeometry(sh,{depth:1.25,bevelEnabled:true,bevelThickness:.18,bevelSize:.17,bevelSegments:2,steps:1});g.rotateX(-Math.PI/2);const m=mesh(g,[p===LAND[0]?terrain.material:mats.ground,mats.darkstone]);m.position.y=-1.25;}
+ for(const p of LAND){const sh=new THREE.Shape(p.map(([x,z])=>new THREE.Vector2(x*S,-z*S)));const g=new THREE.ExtrudeGeometry(sh,{depth:1.25,bevelEnabled:true,bevelThickness:.18,bevelSize:.17,bevelSegments:2,steps:1});g.rotateX(-Math.PI/2);const m=mesh(g,[p===LAND[0]||LAND.indexOf(p)>=4?terrain.material:mats.ground,mats.darkstone]);m.position.y=-1.25;}
  // Hand-laid trail stones: the same route as the authoritative game map.
- const paths=[[[465,1410],[655,1360],[750,1180],[930,1100],[1135,815],[1420,820],[1650,795],[1840,680],[1910,560]],[[930,850],[780,810],[660,710]]];
+ const paths=[[[500,1600],[750,1780],[750,2050],[920,2070]],[[2900,1800],[3035,1600],[3035,1350],[3370,1250],[3550,900],[3660,640]],[[4230,1800],[4440,1500],[4440,1320],[4610,1260],[4700,650]],[[465,1410],[655,1360],[750,1180],[930,1100],[1135,815],[1420,820],[1650,795],[1840,680],[1910,560]],[[930,850],[780,810],[660,710]]];
  const pathMat=new THREE.MeshStandardMaterial({map:stoneTex,color:'#665e4b',roughness:1});
  for(const route of paths)for(let i=1;i<route.length;i++){const a=route[i-1],b=route[i],length=Math.hypot(b[0]-a[0],b[1]-a[1]);for(let d=0;d<length;d+=20){const f=d/length,x=a[0]+(b[0]-a[0])*f,z=a[1]+(b[1]-a[1])*f;if(!landAt(x,z)||BRIDGES.some(q=>x>q.x&&x<q.x+q.w&&z>q.y&&z<q.y+q.h))continue;const patch=mesh(new THREE.CircleGeometry(.5+random()*.18,9),pathMat,x*S,.015,z*S);patch.rotation.x=-Math.PI/2;}}
  const cobbles=[];for(const p of paths)for(let j=1;j<p.length;j++){const [a,b]=[p[j-1],p[j]],length=Math.hypot(b[0]-a[0],b[1]-a[1]);for(let d=0;d<length;d+=22){const f=d/length;for(let k=0;k<2;k++){const x=a[0]+(b[0]-a[0])*f+(random()-.5)*36,z=a[1]+(b[1]-a[1])*f+(random()-.5)*36;if(landAt(x,z))cobbles.push([x*S,z*S,.17+random()*.15]);}}}
@@ -91,9 +92,10 @@ export function createEnvironment(renderer,scene,canvas,sky){
    const shingle=box(mats.darkwood,x,2.69-row*.19,z,.36,.045,.30,group);shingle.rotation.z=side*-.58;
   }
   box(mats.darkwood,0,2.82,0,.16,.14,2.9,group);
-  const copies=new Map();group.traverse(n=>{if(n.isMesh){if(!copies.has(n.material)){const copy=n.material.clone();copy.onBeforeCompile=n.material.onBeforeCompile;copy.customProgramCacheKey=n.material.customProgramCacheKey;copies.set(n.material,copy);}n.material=copies.get(n.material);}});batchStatic(group);buildings.push({group,materials:[...copies.entries()],opacity:1});
+  const copies=new Map();group.traverse(n=>{if(n.isMesh){if(!copies.has(n.material)){const copy=n.material.clone();copy.onBeforeCompile=n.material.onBeforeCompile;copy.customProgramCacheKey=n.material.customProgramCacheKey;copies.set(n.material,copy);}n.material=copies.get(n.material);}});batchStatic(group);buildings.push({group,materials:[...copies.entries()],opacity:1});return group;
  }
  timberHouse(420,1240,1.05,-.15);timberHouse(660,1390,.95,.1,1);timberHouse(760,1580,.75,.35);
+ HOMES.forEach((h,i)=>timberHouse(h.x,h.y,h.w/120,h.angle,i%2));
  // Clones retain their occlusion state, but receive the completed local PBR maps.
  materials.ready.then(()=>{for(const b of buildings)for(const [source,copy] of b.materials){for(const key of ['map','normalMap','roughnessMap','aoMap','bumpMap','bumpScale'])copy[key]=source[key];copy.color.copy(source.color);if(copy.normalScale&&source.normalScale)copy.normalScale.copy(source.normalScale);copy.needsUpdate=true;}});
  const shelfMaterial=new THREE.MeshStandardMaterial({color:'#a39777',roughness:.93,side:THREE.DoubleSide});
@@ -129,7 +131,7 @@ export function createEnvironment(renderer,scene,canvas,sky){
    const trunk=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(0,0,0),new THREE.Vector3(.08,h*.35,.04),new THREE.Vector3(-.04,h*.75,.02),new THREE.Vector3(0,h,0)]),12,.11,7,false),mats.darkwood);crown.add(trunk);
    for(let r=0;r<5;r++){const a=r*1.256;beam(new THREE.Vector3(0,.35,0),new THREE.Vector3(Math.cos(a)*.65,.04,Math.sin(a)*.65),.075,mats.darkwood,crown);}
   }
-  if(z>1070&&x<1050){oldTrunk.removeFromParent();oldTrunk.position.set(0,h*.48,0);crown.add(oldTrunk);replacementFallbacks.push(crown);harbourAssets.add('island_tree_01_lod.glb',crown,{x:x*S,z:z*S,radius:2.85,height:4.8,angle:i*.83});}
+  if((z>1070&&x<1050)||i%5===0){oldTrunk.removeFromParent();oldTrunk.position.set(0,h*.48,0);crown.add(oldTrunk);replacementFallbacks.push(crown);harbourAssets.add({high:'pine_tree_01_high.glb',medium:'pine_tree_01_medium.glb'},crown,{x:x*S,z:z*S,radius:2.2,height:7.2,angle:i*.83});}
   batchStatic(crown);if(z>1070&&x<1050)sceneryVisibility.add(crown);foliage.push({mesh:crown,x:crown.position.x,z:crown.position.z,phase:random()*6,strength:.005});
  }
 

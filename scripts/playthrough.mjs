@@ -26,6 +26,8 @@ try{
   else if(!fighting||dist(e,p)>(e.type==='boss'?105:75)){const key=Math.round(target.x/50)+','+Math.round(target.y/50);if(key!==lastGoal||s.elapsed-lastPathTime>.5){waypoints=route(p,target);lastGoal=key;lastPathTime=s.elapsed;}while(waypoints.length&&dist(p,waypoints[0])<20)waypoints.shift();const point=waypoints[0]||target,a=Math.atan2(point.y-p.y,point.x-p.x);dx=Math.cos(a);dy=Math.sin(a);}
   if(fighting&&e.wind>0&&e.type!=='boss'&&e.type!=='archer'&&dist(p,e)<110&&p.dodge<=0){const a=Math.atan2(p.y-e.y,p.x-e.x);dx=Math.cos(a);dy=Math.sin(a);dodge=true;}
   s=(await api('input',{dx,dy,angle:fighting?Math.atan2(e.y-p.y,e.x-p.x):Math.atan2(dy,dx),attack:false,attackId:fighting&&!(e.type==='boss'&&e.wind>0)&&p.action==='idle'&&p.stamina>15?++command:undefined,heavyId:fighting&&!(e.type==='boss'&&e.wind>0)&&p.combo===2&&p.action==='idle'&&p.stamina>=22?++command:undefined,stormId:fighting&&dist(e,p)<180&&p.storm<=0&&p.stamina>55?++command:undefined,potionId:p.hp<p.maxHp-45&&p.potions>0&&p.potionCooldown<=0?++command:undefined,guard:!!fighting&&e.type==='boss'&&e.wind>0,dodge,interact:true})).run;
+  // This combat bot is tuned for axe range. Opening a random cache must not silently change its tactics.
+  if(s.status==='active'&&s.player.weapon!=='axe'&&s.player.action==='idle')s=(await api('weapon/equip',{weapon:'axe'})).run;
   if(s.elapsed-logTime>=10){logTime=s.elapsed;console.log(`Time ${Math.round(s.elapsed)}s · vitality ${s.player.hp} · kills ${s.kills} · boss ${s.boss.hp}`);}
   await new Promise(r=>setTimeout(r,80));
  }

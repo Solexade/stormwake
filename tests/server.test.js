@@ -46,7 +46,7 @@ test('HTTP sessions, score tampering, origin checks, and persistence',async t=>{
   for(const name of ['boulder_01','wooden_barrels_01']){const model=await fetch(base+'/assets/'+name+'.glb',{method:'HEAD'});assert.equal(model.status,200);}
 
   response=await post('shop/buy',{item:'axe',cost:0});assert.equal(response.status,400);
-  response=await post('weapon/equip',{weapon:'spear'});assert.equal(response.status,200);assert.equal((await response.json()).player.gear.weapon,'spear');
+  response=await post('weapon/equip',{weapon:'spear'});assert.equal(response.status,400);assert.match((await response.json()).error,/Discover/);response=await post('weapon/equip',{weapon:'axe'});assert.equal(response.status,200);
   response=await post('weapon/equip',{weapon:'admin'});assert.equal(response.status,400);
   const fixture=new DatabaseSync(path.join(dir,'isles.sqlite'));
   fixture.prepare('UPDATE players SET salvage=100 WHERE id=?').run(state.player.id);fixture.close();

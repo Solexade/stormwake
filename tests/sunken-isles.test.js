@@ -78,3 +78,13 @@ import {HARBOUR_ROCKS} from '../public/scene/harbour-refurbish.js';
 test('harbour rock clusters keep conservative bounds outside traversal',()=>{
  for(const p of HARBOUR_ROCKS)for(let x=-p.radius;x<=p.radius;x+=.1)for(let z=-p.radius;z<=p.radius;z+=.1)if(Math.hypot(x,z)<=p.radius)assert.equal(landAt((p.x+x)*40,(p.z+z)*40),false,JSON.stringify(p));
 });
+
+test('quality-specific assets survive a late high load and reuse cached variants',async()=>{
+ const scene=new THREE.Scene(),canvas={dataset:{}},fallback=new THREE.Group();scene.add(fallback);let resolveHigh,calls=[];
+ const assets=createHarbourAssets(scene,canvas,async id=>{calls.push(id);if(id==='high')await new Promise(r=>resolveHigh=r);return prop();});
+ const high=assets.add({high:'high',medium:'medium'},fallback,{x:0,z:0,height:2});await Promise.resolve();
+ await assets.setQuality('medium');resolveHigh();await high;
+ assert.equal(scene.children.filter(n=>n.visible).length,1);assert.equal(fallback.visible,false);
+ await assets.setQuality('low');assert.equal(fallback.visible,true);assert.equal(scene.children.filter(n=>n.visible).length,1);
+ await assets.setQuality('high');await assets.setQuality('medium');assert.deepEqual(calls,['high','medium']);
+});

@@ -19,8 +19,8 @@ export const coastGLSL=`uniform sampler2D coastMap;
 export const CLIFF_PLACEMENTS=Object.freeze([
  {x:2.1,z:31.1,radius:3,height:2,y:-.85,angle:1.0},
  {x:1.7,z:38,radius:3.6,height:2,y:-.85,angle:1.4},
- {x:11,z:46.6,radius:3.8,height:2,y:-.9,angle:.1},
- {x:21,z:46.5,radius:3.5,height:2,y:-.9,angle:-.25},
+ {x:8,z:61,radius:3.8,height:2,y:-.9,angle:.1},
+ {x:23,z:59,radius:3.5,height:2,y:-.9,angle:-.25},
 ]);
 
 // Material clones isolate fading: shared source GLBs/textures remain unchanged.

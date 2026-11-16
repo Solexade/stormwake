@@ -1,7 +1,11 @@
-export function initialQuality(coarse=false) { return coarse ? "low" : "high"; }
+export function initialQuality(coarse=false) {
+ try { const saved=globalThis.localStorage?.getItem('stormwake.graphics');if(['low','medium','high'].includes(saved))return saved; } catch {}
+ return coarse ? 'low' : 'high';
+}
 // Mobile starts with the lighter preset; players can still select High.
 export const QUALITY = Object.freeze({
   high: Object.freeze({pixelRatio: 1.6, shadows: true, bloom: true, foliage: true, shore: true}),
+  medium: Object.freeze({pixelRatio: 1.25, shadows: true, bloom: false, foliage: true, shore: true}),
   low: Object.freeze({pixelRatio: 1, shadows: false, bloom: false, foliage: false, shore: false}),
 });
 export function qualityPreset(name) { return QUALITY[name] || QUALITY.high; }

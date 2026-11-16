@@ -10,8 +10,9 @@ test('cloud storage restores runs, records purchases and awards extraction only 
  const recovered=await openSession(c,cookie);assert.equal(recovered.p.run.id,ctx.p.run.id);assert.equal(recovered.p.id,ctx.p.id);
  await dispatch(c,recovered,'safehouse/enter');recovered.p.salvage=200;
  await dispatch(c,recovered,'shop/buy',{item:'axe',cost:0});assert.equal(recovered.p.salvage,140);assert.equal(recovered.p.gear.axe,1);
+ await assert.rejects(dispatch(c,recovered,'weapon/equip',{weapon:'sword'}),/Discover/);recovered.p.run.inventory.push('sword');
  await dispatch(c,recovered,'weapon/equip',{weapon:'sword'});assert.equal(recovered.p.run.player.weapon,'sword');
- recovered.p.run.status='won';recovered.p.run.score=123;recovered.p.run.salvage=80;await advance(c,recovered.p);await advance(c,recovered.p);assert.equal(recovered.p.wins,1);assert.equal(recovered.p.salvage,220);
+ recovered.p.run.mode='expedition';recovered.p.run.status='won';recovered.p.run.score=123;recovered.p.run.salvage=80;await advance(c,recovered.p);await advance(c,recovered.p);assert.equal(recovered.p.wins,1);assert.equal(recovered.p.salvage,220);
  const history=await dispatch(c,recovered,'history',{},'GET');assert.ok(history.records.some(r=>r.kind==='purchase'));assert.equal(history.records.filter(r=>r.kind==='expedition').length,1);
  await persist(c,recovered.p);c.release();await pool.end();
 });
@@ -46,5 +47,32 @@ test('username entry creates a free profile without granting access by name',asy
   ctx.p.wallet='0x'+'1'.repeat(40);delete ctx.p.usernameCreated;await persist(c,ctx.p);
   const legacy=await openSession(c,ctx.cookie);await dispatch(c,legacy,'profile',{name:'Free Hero'});await persist(c,legacy.p);
   const {key}=await dispatch(c,legacy,'save/key');const restored=await dispatch(c,stranger,'save/restore',{key});assert.equal(restored.player.id,ctx.p.id);assert.equal(restored.player.usernameCreated,true);assert.equal(restored.player.salvage,170);assert.equal(restored.player.gear.axe,2);
+ }finally{c.release();await pool.end();}
+});
+
+
+test('voyage discoveries survive restore, forged equipment is rejected and rank banks once',async()=>{
+ const db=newDb(),{Pool}=db.adapters.createPg(),pool=new Pool();await pool.query(schema);const c=await pool.connect();
+ try{const ctx=await openSession(c);await dispatch(c,ctx,'profile',{name:'Discovery QA'});await dispatch(c,ctx,'start');
+ await assert.rejects(dispatch(c,ctx,'weapon/equip',{weapon:'sword'}),/Discover/);
+ const now=Date.now();ctx.p.run.updatedAt=now-40;ctx.p.run.lastInputAt=now;ctx.p.run.input={interact:true};await advance(c,ctx.p,now);
+ assert.equal(ctx.p.run.inventory.length,2);const found=ctx.p.run.player.weapon;assert.ok(ctx.p.gear.foundWeapons.includes(found));await persist(c,ctx.p);
+ const restored=await openSession(c,ctx.cookie);assert.ok(restored.p.gear.foundWeapons.includes(found));
+ restored.p.run.mode='expedition';restored.p.run.status='won';restored.p.run.kills=4;restored.p.run.bossDead=true;await advance(c,restored.p);await advance(c,restored.p);assert.deepEqual(restored.p.gear.adventure,{kills:4,bosses:1});
+ }finally{c.release();await pool.end();}
+});
+
+
+test('survival death banks personal records once across restore without extraction credit',async()=>{
+ const db=newDb(),{Pool}=db.adapters.createPg(),pool=new Pool();await pool.query(schema);const c=await pool.connect();
+ try{
+  const ctx=await openSession(c);await dispatch(c,ctx,'profile',{name:'Survival QA'});await dispatch(c,ctx,'start');
+  assert.equal(ctx.p.run.mode,'survival');ctx.p.salvage=70;ctx.p.gear.axe=2;
+  Object.assign(ctx.p.run,{status:'dead',kills:17,wave:4,score:1020,elapsed:142.8});
+  await advance(c,ctx.p);await advance(c,ctx.p);await persist(c,ctx.p);
+  const restored=await openSession(c,ctx.cookie);await advance(c,restored.p);
+  assert.deepEqual(restored.p.gear.survival,{runs:1,bestKills:17,bestWave:4,bestScore:1020,bestSeconds:142});
+  assert.equal(restored.p.salvage,70);assert.equal(restored.p.wins,0);assert.equal(restored.p.gear.axe,2);
+  const records=await c.query("SELECT * FROM stormwake_records WHERE kind='expedition'");assert.equal(records.rows.length,1);
  }finally{c.release();await pool.end();}
 });

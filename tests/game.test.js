@@ -37,7 +37,7 @@ test('healing cache grants salvage once',()=>{
   const s=createRun('a',now);Object.assign(s.player,{x:580,y:720,hp:40});s.input={interact:true};step(s);assert.equal(s.player.hp,85);assert.equal(s.salvage,40);step(s,5);assert.equal(s.salvage,40);
 });
 test('expedition expires rather than running forever',()=>{
-  const s=createRun('a',now);s.elapsed=719.99;step(s);assert.equal(s.status,'expired');
+  const s=createRun('a',now);s.elapsed=1799.99;step(s);assert.equal(s.status,'expired');
 });
 test('new players are safe in the harbour while learning the controls',()=>{
   const s=createRun('a',now);step(s,1800);assert.equal(s.player.hp,120);assert.equal(s.status,'active');

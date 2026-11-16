@@ -1,5 +1,19 @@
 // Local assets only. Checksums verified by the build.
 export const ASSETS = Object.freeze({
+"pine_tree_01_medium.glb":{"url":"/assets/pine_tree_01_medium.glb","type":"glb","pbr":true,"bytes":10178360,"sha256":"ae9d64a5aee64dd4cb4c0c0371679750c29d445ef7aa98bceda66c36c32da568","license":"CC0-1.0","creator":"Poly Haven contributors","source":"https://polyhaven.com/a/pine_tree_01","provenance":"2026-11-14: 948849556-byte source and 1K maps verified against Poly Haven API MD5","conversion":"Variant B; meshoptimizer 1.3.0 sloppy simplification; 31630 triangles; original UVs/normals and PBR textures; original layout translation removed"},
+"pine_tree_01_high.glb":{"url":"/assets/pine_tree_01_high.glb","type":"glb","pbr":true,"bytes":11797108,"sha256":"a03cdb91701ea0f3ef433ff476736dcd44af51be8d77040f3e769f0f748ffb03","license":"CC0-1.0","creator":"Poly Haven contributors","source":"https://polyhaven.com/a/pine_tree_01","provenance":"2026-11-14: 948849556-byte source and 1K maps verified against Poly Haven API MD5","conversion":"Variant B; meshoptimizer 1.3.0 sloppy simplification; 86274 triangles; original UVs/normals and PBR textures; original layout translation removed"},
+  "medieval_house_02.glb": {
+  "url": "/assets/medieval_house_02.glb",
+  "type": "glb",
+  "pbr": false,
+  "bytes": 4282376,
+  "sha256": "1faa60f9567f69f56a2cd4d3451c9e9fa2ed2a2326e02180ee99201be5b98429",
+  "license": "CC0-1.0",
+  "creator": "Daniel Andersson (Daniel74)",
+  "source": "https://opengameart.org/content/medieval-house-pack",
+  "provenance": "Downloaded 2026-11-14; archive includes author CC0 declaration",
+  "conversion": "Blender 4.2.9; 12760 triangles; joined mesh; packed original base-colour JPEG textures; restored missing wood material from included Wood.jpg; no normal/AO maps"
+},
   "wooden_barrels_01.glb": {
     "url": "/assets/wooden_barrels_01.glb",
     "pbr": true,

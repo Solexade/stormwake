@@ -1,3 +1,5 @@
+import {createVoyageScenery} from './scene/voyage.js';
+import {CAMPS,FERRIES,PEOPLE} from './voyage-data.js';
 import {dressWarrior} from './characters.js';
 import {cinematicPass} from './cinematic.js';
 import {warningFor} from './combat-presentation.js';
@@ -8,7 +10,7 @@ import {createHarbourShore} from './scene/harbour.js';
 import {qualityPreset,createFrameMeter,initialQuality} from './scene/quality.js';
 import {PALETTE} from './scene/palette.js';
 import * as THREE from './vendor/three.module.js';
-import {LAND,BRIDGES,HOME,SHRINE,BOSS,OBSTACLES,landAt} from './game.js';
+import {WORLD,LAND,BRIDGES,HOME,SHRINE,BOSS,OBSTACLES,landAt} from './game.js';
 import {walkable} from './world.js';
 import {SAFEHOUSE,FORGE,SUPPLIES} from './catalog.js';
 
@@ -24,14 +26,15 @@ export function createWorld(canvas){
  const camera=new THREE.PerspectiveCamera(48,1,.08,190);const look=new THREE.Vector3(HOME.x*S,1,HOME.y*S);let first=true,mode='follow',quality=initialQuality(mobile);
  const {sun,sky,skyMaterial,environment}=createLighting(renderer,scene);
  const {sceneryVisibility,harbourAssets,mats,box,ball,cylinder,beam,mesh,form,batchStatic,boat,chest,crystal,shrineLight,beaconFlame,beaconLight,flames,waterMaterial,foliage,pennants,motes,buildings,grass,harbourPlants,contactMaterial,materials}=createEnvironment(renderer,scene,canvas,sky);
+ const voyage=createVoyageScenery(scene,{mats,box,ball,cylinder,beam,mesh,batchStatic,boat,foliage,sceneryVisibility});
  const shore=createHarbourShore(scene),meter=createFrameMeter();
  const metricsFrustum=new THREE.Frustum(),metricsMatrix=new THREE.Matrix4();
  materials.ready.then(()=>{if(scene.environment!==environment.texture)environment.dispose();});
  const warrior=createActorFactory({scene,mats,box,ball,cylinder,beam,mesh,form,batchStatic,contactMaterial,canvas});
  let orbit=0;
  const player=warrior('player');
- window.addEventListener('stormwake:hero',event=>dressWarrior(player,canvas,event.detail));const actors=new Map();let actorRun='';
- const merchants=[{place:FORGE,title:'ASTRID · FORGE',actor:warrior('player')},{place:SUPPLIES,title:'EDDA · SUPPLIES',actor:warrior('player')}];
+ window.addEventListener('stormwake:hero',event=>dressWarrior(player,canvas,event.detail));const actors=new Map();
+ const merchants=[...PEOPLE.map(place=>({place,title:place.name.toUpperCase(),actor:warrior('player')})),{place:FORGE,title:'ASTRID · FORGE',actor:warrior('player')},{place:SUPPLIES,title:'EDDA · SUPPLIES',actor:warrior('player')}];
  for(const npc of merchants){npc.actor.weapon.visible=false;npc.actor.shield.visible=false;}
  const anvilGroup=new THREE.Group();anvilGroup.position.set((FORGE.x+33)*S,0,FORGE.y*S);scene.add(anvilGroup);cylinder(mats.darkwood,0,.30,0,.28,.35,.6,anvilGroup);box(mats.metal,0,.68,0,.82,.19,.38,anvilGroup);box(mats.metal,0,.51,0,.30,.2,.24,anvilGroup);const horn=mesh(new THREE.ConeGeometry(.13,.36,8),mats.steel,.55,.7,0,anvilGroup);horn.rotation.z=-Math.PI/2;
  const supplyFallback=box(mats.wood,(SUPPLIES.x+33)*S,.37,SUPPLIES.y*S,.7,.74,.7);harbourAssets.add('wooden_barrels_01.glb',supplyFallback,{x:(SUPPLIES.x+33)*S,z:SUPPLIES.y*S,height:.74});for(let i=0;i<3;i++)cylinder(mats.glow,(SUPPLIES.x+23+i*10)*S,.89,SUPPLIES.y*S,.04,.065,.28);
@@ -50,23 +53,28 @@ export function createWorld(canvas){
  const occlusionRay=new THREE.Raycaster();
  const raycaster=new THREE.Raycaster(),ground=new THREE.Plane(UP,0),intersection=new THREE.Vector3();
  function aimAt(mouse,p){raycaster.setFromCamera(new THREE.Vector2(mouse.x/w*2-1,-mouse.y/h*2+1),camera);if(raycaster.ray.intersectPlane(ground,intersection))return Math.atan2(intersection.z-p.y*S,intersection.x-p.x*S);return p.angle;}
- function minimap(run){const mw=106,mh=79,x=w-mw-17,y=h-mh-80;if(w<600)return;hud.fillStyle='#0a1829bb';hud.fillRect(x,y,mw,mh);hud.strokeStyle='#97b1b244';hud.strokeRect(x,y,mw,mh);hud.save();hud.translate(x,y);hud.scale(mw/2500,mh/1850);hud.fillStyle='#96ada27a';for(const p of LAND){hud.beginPath();p.forEach(([x,z],i)=>i?hud.lineTo(x,z):hud.moveTo(x,z));hud.closePath();hud.fill();}hud.fillStyle='#f4cc8a';hud.beginPath();hud.arc(run.player.x,run.player.y,50,0,7);hud.fill();hud.restore();}
+ function minimap(run){const mw=106,mh=79,x=w-mw-17,y=h-mh-80;if(w<600)return;hud.fillStyle='#0a1829bb';hud.fillRect(x,y,mw,mh);hud.strokeStyle='#97b1b244';hud.strokeRect(x,y,mw,mh);hud.save();hud.translate(x,y);hud.scale(mw/WORLD.width,mh/WORLD.height);hud.fillStyle='#96ada27a';for(const p of LAND){hud.beginPath();p.forEach(([x,z],i)=>i?hud.lineTo(x,z):hud.moveTo(x,z));hud.closePath();hud.fill();}hud.fillStyle='#f4cc8a';hud.beginPath();hud.arc(run.player.x,run.player.y,50,0,7);hud.fill();hud.restore();}
  function draw(t,dt,run,playing,community,options={}){
+  voyage.update(run,t);
   const frameStart=performance.now();meter.begin(frameStart);
   shore.update(t,qualityPreset(quality).shore,options.reducedMotion);
-  for(const npc of merchants)animateActor(npc.actor,{x:npc.place.x+20,y:npc.place.y,angle:Math.PI/2,hp:1,maxHp:1,vx:0,vy:0},dt,t,camera,first);
+  for(const npc of merchants){npc.actor.root.visible=!run||Math.hypot(npc.place.x-run.player.x,npc.place.y-run.player.y)<1400;if(npc.actor.root.visible)animateActor(npc.actor,{x:npc.place.x+20,y:npc.place.y,angle:Math.PI/2,hp:1,maxHp:1,vx:0,vy:0,action:'idle',weapon:'axe'},dt,t,camera,first);npc.actor.weapon.visible=false;npc.actor.shield.visible=false;}
   const windTime=options.reducedMotion?0:t;
   skyMaterial.uniforms.time.value=windTime;
   if(quality!=='low')foliage.forEach(f=>{f.mesh.rotation.z=Math.sin(windTime*.8+f.phase)*f.strength;f.mesh.position.x=f.x+Math.sin(windTime*.8+f.phase)*f.strength*.7;});
   pennants.forEach((flag,j)=>{const v=flag.geometry.attributes.position;for(let i=0;i<v.count;i++){const x=v.getX(i),y=v.getY(i);v.setZ(i,Math.sin(windTime*2.3+x*5+y*2+j)*.09*(x+.425)/.85);}v.needsUpdate=true;});
   motes.visible=quality!=='low'&&!options.reducedMotion;motes.position.set(player.root.position.x+Math.sin(windTime*.1),0,player.root.position.z);motes.rotation.y=windTime*.012;
   waterMaterial.uniforms.time.value=options.reducedMotion?0:t;boat.rotation.z=options.reducedMotion?0:Math.sin(t*.7)*.015;boat.position.y=-.45+(options.reducedMotion?0:Math.sin(t*.6)*.045);
+  crystal.position.x=((run?.shrine||SHRINE).x-SHRINE.x)*S;crystal.position.z=((run?.shrine||SHRINE).y-SHRINE.y)*S;shrineLight.position.x=crystal.position.x;shrineLight.position.z=crystal.position.z;
   crystal.rotation.y=windTime*.5;crystal.position.y=1.2+Math.sin(windTime*1.8)*.10;crystal.visible=!playing||!run?.relic;shrineLight.intensity=crystal.visible?4:0;chest.visible=!playing||!run?.chest;
   beaconFlame.visible=community.salvage>=community.target;beaconLight.intensity=beaconFlame.visible?14:0;beaconFlame.scale.y=1.5+Math.sin(t*8)*.2;flames.forEach((f,i)=>f.scale.setScalar(1+Math.sin(t*9+i)*.13));
   const p=playing&&run?run.player:{...HOME,angle:1.05,hp:120,maxHp:120};animateActor(player,p,dt,t,camera,first);
-  if(run&&run.id!==actorRun){actorRun=run.id;for(const e of [...run.enemies,run.boss]){if(!actors.has(e.id))actors.set(e.id,warrior(e.type));actors.get(e.id).root.position.set(e.x*S,0,e.y*S);}}
-  for(const a of actors.values())a.root.visible=playing;
-  if(playing&&run)for(const e of [...run.enemies,run.boss])animateActor(actors.get(e.id),e,dt,t,camera,first);
+  for(const a of actors.values())a.root.visible=false;
+  if(playing&&run)for(const e of [...run.enemies,run.boss]){
+   if(e.hp<=0&&!e.death)continue;
+   const key=e.type+':'+e.id;if(!actors.has(key))actors.set(key,warrior(e.type));
+   animateActor(actors.get(key),e,dt,t,camera,first);
+  }
   const px=player.root.position.x,pz=player.root.position.z;
   const target=new THREE.Vector3(),desired=new THREE.Vector3();
   if(playing){const lead=options.reducedMotion?0:.0025;target.set(px+(p.vx||0)*lead,1.0,pz+(p.vy||0)*lead-.35);desired.set(px+Math.sin(orbit)*(mode==='tactical'?13:8.2),mode==='tactical'?15:5.6,pz+Math.cos(orbit)*(mode==='tactical'?13:8.2));camera.fov+=((p.sprinting&&!options.reducedMotion?51:50)-camera.fov)*(1-Math.exp(-dt*3));}else{target.set(px-.9,1.0,pz-.15);desired.set(px+2.3,3.3,pz+6.1);camera.fov=w<600?54:47;}
@@ -74,17 +82,17 @@ export function createWorld(canvas){
   sky.position.copy(camera.position);
   sun.position.set(px-8,22,pz+10);sun.target.position.set(px,0,pz-5);
   raven.position.set(px+Math.cos(t*.75)*1.15,2.5+Math.sin(t*1.3)*.13,pz-.45+Math.sin(t*.75)*.6);raven.rotation.y=-t*.75;wings.forEach((p,i)=>p.rotation.z=Math.sin(t*11)*.45*(i?1:-1));
-  tells.forEach(m=>m.visible=false);arrows.forEach(a=>a.visible=false);stormRing.visible=false;trail.visible=false;targetRune.visible=playing;
+  tells.forEach(m=>m.visible=false);arrows.forEach(a=>a.visible=false);stormRing.visible=false;trail.visible=false;targetRune.visible=playing&&run?.mode!=='survival';
   if(playing&&run){let j=0;for(const e of run.enemies){if(e.hp>0&&e.wind>0&&e.type!=='archer'&&j<tells.length){const m=tells[j++];m.visible=true;m.position.set(e.x*S,.24,e.y*S);m.scale.setScalar((e.type==='brute'?120:76)*S);m.material.opacity=.3+warningFor(e).progress*.4;}}
    const b=run.boss;if(b.hp>0&&b.wind>0){const m=tells[11];m.visible=true;m.position.set(b.targetX*S,.26,b.targetY*S);m.scale.setScalar(b.radius*S);m.material.opacity=.45;}
    for(const f of run.effects){if(f.type==='storm'||f.type==='slam'){stormRing.visible=true;stormRing.position.set(f.x*S,.3,f.y*S);stormRing.scale.setScalar(Math.max(.05,(f.type==='storm'?225:f.radius)*S*(1-f.life/f.maxLife)));}}
    if(p.slash>0){trail.visible=true;trail.position.set(px,1.10,pz);trail.rotation.z=-p.angle;trail.scale.setScalar(p.action==='finisher'?1.7:p.action==='heavy'?1.3:1);}
    run.shots.slice(0,arrows.length).forEach((shot,i)=>{const a=arrows[i];a.visible=true;a.position.set(shot.x*S,1,shot.y*S);a.quaternion.setFromUnitVectors(UP,new THREE.Vector3(shot.vx,0,shot.vy).normalize());});
-   const goal=run.bossDead?HOME:run.relic?BOSS:SHRINE;targetRune.position.set(goal.x*S,.28,goal.y*S);targetRune.scale.setScalar(1+Math.sin(t*2)*.06);
+   const goal=run.bossDead?(run.home||HOME):run.relic?run.boss:(run.shrine||SHRINE);targetRune.position.set(goal.x*S,.28,goal.y*S);targetRune.scale.setScalar(1+Math.sin(t*2)*.06);
   }
   const heroPoint=new THREE.Vector3(px,1.25,pz),sight=heroPoint.clone().sub(camera.position),sightDistance=sight.length();occlusionRay.set(camera.position,sight.normalize());occlusionRay.far=Math.max(0,sightDistance-.4);
   canvas.dataset.sceneryOccluded=String(sceneryVisibility.update(camera,heroPoint,dt,playing));
-  for(const building of buildings){const obstructs=playing&&occlusionRay.intersectObject(building.group,true).length>0;building.opacity+=((obstructs?.18:1)-building.opacity)*(1-Math.exp(-dt*14));for(const [source,material] of building.materials){for(const slot of ['map','normalMap','roughnessMap','bumpMap'])if(material[slot]!==source[slot]){material[slot]=source[slot];material.needsUpdate=true;}material.color.copy(source.color);if(material.normalScale&&source.normalScale)material.normalScale.copy(source.normalScale);material.transparent=true;material.opacity=building.opacity;material.depthWrite=building.opacity>.95;}building.group.traverse(n=>{if(n.isMesh)n.castShadow=building.opacity>.95;});}
+  for(const building of buildings){if(!building.group.visible)continue;const obstructs=playing&&occlusionRay.intersectObject(building.group,true).length>0;building.opacity+=((obstructs?.18:1)-building.opacity)*(1-Math.exp(-dt*14));for(const [source,material] of building.materials){for(const slot of ['map','normalMap','roughnessMap','bumpMap'])if(material[slot]!==source[slot]){material[slot]=source[slot];material.needsUpdate=true;}material.color.copy(source.color);if(material.normalScale&&source.normalScale)material.normalScale.copy(source.normalScale);material.transparent=true;material.opacity=building.opacity;material.depthWrite=building.opacity>.95;}building.group.traverse(n=>{if(n.isMesh)n.castShadow=building.opacity>.95;});}
   cinema.render(scene,camera,qualityPreset(quality).bloom);hud.clearRect(0,0,w,h);
   if(playing&&run){
    for(const e of [...run.enemies,run.boss]){
@@ -105,9 +113,9 @@ export function createWorld(canvas){
   }
   if(playing&&run){minimap(run);const cd=run.player.storm;hud.fillStyle='#102532c9';hud.fillRect(w-112,145,92,29);hud.fillStyle=cd>0?'#a8bac0':'#f2d59c';hud.font='10px Segoe UI';hud.textAlign='center';hud.fillText(cd>0?`ϟ STORM ${cd.toFixed(1)}s`:'ϟ Q · STORM READY',w-66,164);
    for(const effect of run.effects){if(effect.type==='pulse'){const a=player.gun.localToWorld(new THREE.Vector3(0,.015,-.82)).project(camera),b=new THREE.Vector3(effect.tx*S,1.45,effect.ty*S).project(camera);if(a.z>1||b.z>1)continue;hud.strokeStyle='#93ffff';hud.lineWidth=3;hud.beginPath();hud.moveTo((a.x+1)*w/2,(1-a.y)*h/2);hud.lineTo((b.x+1)*w/2,(1-b.y)*h/2);hud.stroke();}if(effect.type==='blood'&&options.bloodFX!==false){const v=new THREE.Vector3(effect.x*S,.025,effect.y*S).project(camera);if(v.z<1){hud.fillStyle='rgba(100,15,20,'+Math.min(.55,effect.life*.4)+')';hud.beginPath();hud.ellipse((v.x+1)*w/2,(1-v.y)*h/2,12,4,-.2,0,Math.PI*2);hud.fill();}}if(effect.type==='hit'&&options.bloodFX!==false){const age=1-effect.life/effect.maxLife;for(let i=0;i<9;i++){const a=i*2.4+effect.x,spread=age*(.5+(i%3)*.22);const v=new THREE.Vector3(effect.x*S+Math.cos(a)*spread,Math.max(.05,1+age*.9-age*age*2.3),effect.y*S+Math.sin(a)*spread).project(camera);if(v.z<1){hud.fillStyle='rgba(155,24,29,'+(1-age*.8)+')';hud.beginPath();hud.ellipse((v.x+1)*w/2,(1-v.y)*h/2,2+(i%3),1.5+(i%2),a,0,Math.PI*2);hud.fill();}}}if(effect.type==='hit'){const v=new THREE.Vector3(effect.x*S,2+(1-effect.life/effect.maxLife)*.7,effect.y*S).project(camera);hud.fillStyle='#ffe0a4';hud.font='bold 16px Segoe UI';hud.fillText(effect.amount,(v.x+1)*w/2,(1-v.y)*h/2);}if(effect.type==='finisher'||effect.type==='parry'){const v=new THREE.Vector3(effect.x*S,1,effect.y*S).project(camera);hud.strokeStyle=effect.type==='parry'?'#b8edff':'#ffd590';hud.lineWidth=3;hud.beginPath();hud.arc((v.x+1)*w/2,(1-v.y)*h/2,30*(1-effect.life/effect.maxLife),0,Math.PI*2);hud.stroke();}if(effect.type==='hurt'){hud.fillStyle=`rgba(150,43,23,${effect.life*.22})`;hud.fillRect(0,0,w,h);}}
-   const goal=run.bossDead?HOME:run.relic?BOSS:SHRINE;if(Math.hypot(goal.x-p.x,goal.y-p.y)>190){const v=new THREE.Vector3(goal.x*S,.5,goal.y*S).project(camera);const sx=(v.x+1)*w/2,sy=(1-v.y)*h/2,tx=Math.max(32,Math.min(w-32,sx)),ty=Math.max(180,Math.min(h-115,sy));hud.fillStyle='#f3d398';hud.font='18px Georgia';hud.fillText('◇',tx,ty);hud.font='8px Segoe UI';hud.fillText(run.bossDead?'HARBOUR':run.relic?'WARDEN':'SHRINE',tx,ty+17);}
+   const goal=run.bossDead?HOME:run.relic?BOSS:SHRINE;if(run.mode!=='survival'&&Math.hypot(goal.x-p.x,goal.y-p.y)>190){const v=new THREE.Vector3(goal.x*S,.5,goal.y*S).project(camera);const sx=(v.x+1)*w/2,sy=(1-v.y)*h/2,tx=Math.max(32,Math.min(w-32,sx)),ty=Math.max(180,Math.min(h-115,sy));hud.fillStyle='#f3d398';hud.font='18px Georgia';hud.fillText('◇',tx,ty);hud.font='8px Segoe UI';hud.fillText(run.bossDead?'HARBOUR':run.relic?'WARDEN':'SHRINE',tx,ty+17);}
   }
-  if(playing&&run){for(const spot of [{place:SAFEHOUSE,title:'HEARTHHALL'},...merchants]){if(Math.hypot(spot.place.x-p.x,spot.place.y-p.y)>420)continue;const v=new THREE.Vector3(spot.place.x*S,2.7,spot.place.y*S).project(camera);if(v.z<1&&Math.abs(v.x)<.94&&Math.abs(v.y)<.85){hud.font='bold 9px Segoe UI';hud.textAlign='center';hud.fillStyle='#fae0a6';hud.fillText(spot.title,(v.x+1)*w/2,(1-v.y)*h/2);}}if(options.lockedTarget!==null&&options.lockedTarget!==undefined){const locked=[...run.enemies,run.boss].find(e=>e.id===options.lockedTarget&&e.hp>0);if(locked){const v=new THREE.Vector3(locked.x*S,2.6,locked.y*S).project(camera);hud.fillStyle='#ffe3a4';hud.font='21px Georgia';hud.fillText('◇',(v.x+1)*w/2,(1-v.y)*h/2);}}}
+  if(playing&&run){for(const spot of [{place:SAFEHOUSE,title:'HEARTHHALL'},...CAMPS.map(place=>({place,title:place.name.toUpperCase()})),...FERRIES.map(place=>({place,title:place.name.toUpperCase()})),...merchants]){if(Math.hypot(spot.place.x-p.x,spot.place.y-p.y)>420)continue;const v=new THREE.Vector3(spot.place.x*S,2.7,spot.place.y*S).project(camera);if(v.z<1&&Math.abs(v.x)<.94&&Math.abs(v.y)<.85){hud.font='bold 9px Segoe UI';hud.textAlign='center';hud.fillStyle='#fae0a6';hud.fillText(spot.title,(v.x+1)*w/2,(1-v.y)*h/2);}}if(options.lockedTarget!==null&&options.lockedTarget!==undefined){const locked=[...run.enemies,run.boss].find(e=>e.id===options.lockedTarget&&e.hp>0);if(locked){const v=new THREE.Vector3(locked.x*S,2.6,locked.y*S).project(camera);hud.fillStyle='#ffe3a4';hud.font='21px Georgia';hud.fillText('◇',(v.x+1)*w/2,(1-v.y)*h/2);}}}
   first=false;
   meter.end(performance.now()-frameStart);
   if(!canvas.dataset.metricsAt||performance.now()-Number(canvas.dataset.metricsAt)>1000){
@@ -117,5 +125,5 @@ export function createWorld(canvas){
     const measured=meter.read();canvas.dataset.frameP95Ms=measured.frame.p95Ms.toFixed(2);canvas.dataset.cpuP95Ms=measured.cpu.p95Ms.toFixed(2);canvas.dataset.frameSamples=String(measured.frame.samples);canvas.dataset.metricsAt=String(performance.now());canvas.dataset.graphicsQuality=quality;
   }
  }
- return {draw,aimAt,setOrbit(value){orbit=value;},setMode(value){mode=value;},setQuality(value){quality=value==='low'?'low':'high';harbourAssets.setQuality(quality);const preset=qualityPreset(quality);renderer.setPixelRatio(Math.min(devicePixelRatio,preset.pixelRatio));renderer.shadowMap.enabled=preset.shadows;grass.visible=preset.foliage;harbourPlants.visible=preset.foliage;meter.reset();resize();},getInfo(){return {engine:'Three.js',revision:THREE.REVISION,quality,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,...meter.read()};}};
+ return {draw,aimAt,setOrbit(value){orbit=value;},setMode(value){mode=value;},setQuality(value){quality=['low','medium','high'].includes(value)?value:'high';harbourAssets.setQuality(quality);const preset=qualityPreset(quality);renderer.setPixelRatio(Math.min(devicePixelRatio,preset.pixelRatio));renderer.shadowMap.enabled=preset.shadows;grass.visible=preset.foliage;harbourPlants.visible=preset.foliage;meter.reset();resize();},getInfo(){return {engine:'Three.js',revision:THREE.REVISION,quality,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,...meter.read()};}};
 }

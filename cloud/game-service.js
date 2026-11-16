@@ -1,3 +1,5 @@
+import {bankSurvival} from '../public/survival.js';
+import {CAMPS,foundWeapons,bankVoyage} from '../public/voyage-data.js';
 import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import {createRun,tick,snapshot,setInput,chooseRelic,applyLoadout} from '../public/game.js';
 import {SHOP_ITEMS,WEAPONS,SAFEHOUSE,FORGE,SUPPLIES,near,safeArea} from '../public/catalog.js';
@@ -13,15 +15,16 @@ async function issue(c,ctx){const token=randomBytes(32).toString('hex');await c.
 export async function advance(c,p,now=Date.now()){
  const s=p.run;if(!s)return;
  if(s.status==='active'){
-  if(now-s.started>45*60*1000)s.status='expired';
+  if(now-(s.mode==='survival'?s.lastInputAt:s.started)>45*60*1000)s.status='expired';
   // Resume after outages without simulating minutes of unattended combat.
   const elapsed=Math.max(0,Math.min(1000,now-(s.updatedAt||now)));let left=elapsed,clock=now-elapsed;
   while(left>0&&s.status==='active'){const ms=Math.min(1000/30,left);clock+=ms;tick(s,ms/1000,clock);left-=ms;}
   s.updatedAt=now;
   if(s.usedPotions>s.potionsDebited){p.potions=Math.max(0,p.potions-(s.usedPotions-s.potionsDebited));s.potionsDebited=s.usedPotions;}
  }
+ if(s.inventory)p.gear.foundWeapons=[...new Set([...foundWeapons(p.gear),...s.inventory])];
  for(const e of s.events||[]){if(e.id>(s.savedEvent||0))await record(c,p,'combat',{runId:s.id,...e},s.id+':event:'+e.id);}s.savedEvent=s.eventId;
- if(s.status!=='active'&&!s.recorded){s.recorded=true;if(s.status==='won'){p.salvage+=s.salvage;p.wins++;p.best=Math.max(p.best,s.score);s.result={score:s.score,salvage:s.salvage,seconds:Math.round(s.elapsed)};}await record(c,p,'expedition',{runId:s.id,status:s.status,score:s.score,salvage:s.status==='won'?s.salvage:0,kills:s.kills,seconds:Math.round(s.elapsed),weapon:s.player.weapon,relic:s.relic,damageTaken:s.damageTaken},s.id+':result');}
+ if(s.status!=='active'&&!s.recorded){s.recorded=true;if(s.mode==='survival'&&s.status==='dead'){p.gear=bankSurvival(p.gear,s);s.result={score:s.score,kills:s.kills,wave:s.wave,seconds:Math.floor(s.elapsed),salvage:0};}if(s.mode!=='survival'&&s.status==='won'){p.gear=bankVoyage(p.gear,s);p.salvage+=s.salvage;p.wins++;p.best=Math.max(p.best,s.score);s.result={score:s.score,salvage:s.salvage,seconds:Math.round(s.elapsed)};}await record(c,p,'expedition',{runId:s.id,status:s.status,score:s.score,salvage:s.status==='won'?s.salvage:0,kills:s.kills,seconds:Math.round(s.elapsed),mode:s.mode||'expedition',wave:s.wave||0,weapon:s.player.weapon,relic:s.relic,damageTaken:s.damageTaken},s.id+':result');}
 }
 export async function dispatch(c,ctx,route,b={},method='POST',origin='http://localhost',now=Date.now()){
  if(route.startsWith('arrival/')||['auth/challenge','auth/verify'].includes(route))fail('Wallet sign-in and onchain features have been removed. Choose a username to play free.',410);
@@ -42,15 +45,15 @@ export async function dispatch(c,ctx,route,b={},method='POST',origin='http://loc
   await issue(c,ctx);return state();
  }
  if(route==='profile'){const name=String(b.name||'').trim();if(!/^[\p{L}\p{N} _-]{3,18}$/u.test(name))fail('Use 3–18 letters, numbers, spaces, dashes or underscores.');p.name=name;p.usernameCreated=true;return {player:publicProfile(p)};}
- if(route==='start'){if(!p.usernameCreated)fail('Choose a username before starting your free adventure.');if(!p.run||p.run.status!=='active'){p.run=createRun(randomUUID(),now,p);p.run.updatedAt=now;await record(c,p,'expedition-started',{runId:p.run.id,weapon:p.run.player.weapon});}p.run.inSafehouse=false;p.run.paused=false;return {run:snapshot(p.run)};}
+ if(route==='start'){if(!p.usernameCreated)fail('Choose a username before starting your free adventure.');if(!p.run||p.run.status!=='active'){p.run=createRun(randomUUID(),now,{...p,mode:'survival'});p.run.updatedAt=now;await record(c,p,'expedition-started',{runId:p.run.id,weapon:p.run.player.weapon});}p.run.inSafehouse=false;p.run.paused=false;return {run:snapshot(p.run)};}
  if(route==='pause'){if(p.run?.status==='active'){p.run.paused=b.paused===true;p.run.input={};p.run.commands={};p.run.held={};p.run.player.vx=p.run.player.vy=0;p.run.lastInputAt=now;p.run.updatedAt=now;}return {run:p.run?snapshot(p.run):null};}
  if(route==='input'){if(p.run?.status==='active')setInput(p.run,b,now);return {run:p.run?snapshot(p.run):null};}
  if(route==='leave'){if(p.run?.status==='active'){p.run.paused=true;p.run.input={};p.run.commands={};}await advance(c,p,now);return {ok:true};}
  if(route==='relic'){if(!p.run||!chooseRelic(p.run,b.relic))fail('Defeat the shrine guardians and stand beside the shrine.');return {run:snapshot(p.run)};}
- if(route==='safehouse/enter'){const s=p.run;if(s?.status==='active'){if(!safeArea(s.player)||![SAFEHOUSE,FORGE,SUPPLIES].some(q=>near(s.player,q,130)))fail('Reach Hearthhall or a harbour merchant first.');s.inSafehouse=true;s.input={};s.commands={};s.player.vx=s.player.vy=0;}return state();}
+ if(route==='safehouse/enter'){const s=p.run;if(s?.status==='active'){if(!safeArea(s.player)||![SAFEHOUSE,FORGE,SUPPLIES,...CAMPS].some(q=>near(s.player,q,130)))fail('Reach Hearthhall or a harbour merchant first.');s.inSafehouse=true;s.input={};s.commands={};s.player.vx=s.player.vy=0;}return state();}
  if(route==='safehouse/exit'){if(p.run){p.run.inSafehouse=false;p.run.input={};p.run.commands={};p.run.lastInputAt=now;p.run.updatedAt=now;}return {run:p.run?snapshot(p.run):null};}
  if(route==='safehouse/rest'){needSafe();const s=p.run;if(s?.status==='active'){s.player.hp=s.player.maxHp;s.player.stamina=s.player.maxStamina;s.player.action='idle';s.player.attack=0;s.buffer=null;}return state();}
- if(route==='weapon/equip'){if(!Object.hasOwn(WEAPONS,b.weapon))fail('Choose an available weapon.');const s=p.run;if(s?.status==='active'&&s.player.action!=='idle')fail('Finish your move before switching weapons.');p.gear.weapon=b.weapon;if(s?.status==='active'){s.player.weapon=b.weapon;s.player.combo=s.player.comboWindow=0;s.buffer=null;}await record(c,p,'weapon-equipped',{weapon:b.weapon});return state();}
+ if(route==='weapon/equip'){if(!Object.hasOwn(WEAPONS,b.weapon))fail('Choose an available weapon.');const s=p.run;if(s?.status==='active'&&s.player.action!=='idle')fail('Finish your move before switching weapons.');const available=s?.status==='active'?(s.inventory||foundWeapons(p.gear)):foundWeapons(p.gear);if(!available.includes(b.weapon))fail('Discover this weapon in a cache first.');p.gear.weapon=b.weapon;p.gear.foundWeapons=available;if(s?.status==='active'){s.player.weapon=b.weapon;s.player.combo=s.player.comboWindow=0;s.buffer=null;}await record(c,p,'weapon-equipped',{weapon:b.weapon});return state();}
  if(route==='shop/buy'){needSafe();if(!Object.hasOwn(SHOP_ITEMS,b.item))fail('Unknown shop item.');const item=SHOP_ITEMS[b.item],rank=b.item==='potion'?p.potions:p.gear[b.item]||0;if(rank>=(b.item==='potion'?3:item.costs.length))fail('You already own the maximum amount.');const cost=item.costs[b.item==='potion'?0:rank];if(p.salvage<cost)fail(`You need ${cost} recovered salvage.`);p.salvage-=cost;if(b.item==='potion')p.potions++;else p.gear[b.item]=rank+1;if(p.run?.status==='active')applyLoadout(p.run,p);await record(c,p,'purchase',{item:b.item,cost,rank:rank+1});return state();}
  if(route==='contribute'){const amount=Number(b.amount);if(!Number.isSafeInteger(amount)||amount<1||amount>100000)fail('Choose a whole amount of salvage.');if(p.salvage<amount)fail('You need more recovered salvage.');p.salvage-=amount;p.contribution+=amount;await c.query('UPDATE stormwake_world SET salvage=salvage+$1 WHERE id=1',[amount]);await record(c,p,'contribution',{amount});return state();}
  if(route==='auth/logout'){needIdentity();await c.query('DELETE FROM stormwake_sessions WHERE token=$1',[ctx.token]);if(p.run?.status==='active'){p.run.paused=true;p.run.input={};p.run.commands={};}await advance(c,p,now);ctx.cookie='';return {ok:true};}

@@ -1,3 +1,4 @@
+import {bankSurvival} from './public/survival.js';
 import http from 'node:http';
 import {arcadeRequest,sqliteRooms,serialized} from './arcade/service.js';
 import {readFile} from 'node:fs/promises';
@@ -8,6 +9,7 @@ import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
 import {createRun,tick,chooseRelic,snapshot,setInput,applyLoadout} from './public/game.js';
 import {SHOP_ITEMS,WEAPONS,SAFEHOUSE,FORGE,SUPPLIES,near,safeArea} from './public/catalog.js';
+import {CAMPS,foundWeapons,bankVoyage} from './public/voyage-data.js';
 const ROOT=path.dirname(fileURLToPath(import.meta.url));
 const DATA=process.env.DATA_DIR||path.join(ROOT,'data');mkdirSync(DATA,{recursive:true});
 const db=new DatabaseSync(path.join(DATA,'isles.sqlite'));
@@ -36,12 +38,16 @@ function cookie(res,token){res.setHeader('Set-Cookie',`isles=${token}; HttpOnly;
 function issueSession(res,id){const token=randomBytes(32).toString('hex');db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(digest(token),id,Date.now()+31536000000);cookie(res,token);}
 function saveResult(pId,s){
   if(s.recorded||s.status==='active')return;s.recorded=true;
+  if(s.mode==='survival'){
+    if(s.status!=='dead')return;
+    try{db.exec('BEGIN IMMEDIATE');const gear=bankSurvival(JSON.parse(fresh(pId).gear||'{}'),s);db.prepare('UPDATE players SET gear=? WHERE id=?').run(JSON.stringify(gear),pId);db.prepare('INSERT INTO results VALUES(?,?,?,?,?,?,?)').run(s.id,pId,s.score,0,s.elapsed,'survival',Date.now());db.exec('COMMIT');s.result={score:s.score,kills:s.kills,wave:s.wave,seconds:Math.floor(s.elapsed),salvage:0};}catch(e){db.exec('ROLLBACK');s.recorded=false;throw e;}return;
+  }
   if(s.status!=='won')return;
   db.exec('BEGIN IMMEDIATE');
-  try{db.prepare('INSERT INTO results VALUES(?,?,?,?,?,?,?)').run(s.id,pId,s.score,s.salvage,s.elapsed,s.relic,Date.now());db.prepare('UPDATE players SET salvage=salvage+?,wins=wins+1,best=MAX(best,?) WHERE id=?').run(s.salvage,s.score,pId);db.exec('COMMIT');s.result={score:s.score,salvage:s.salvage,seconds:Math.round(s.elapsed)};}
+  try{const gear=bankVoyage(JSON.parse(fresh(pId).gear||'{}'),s);db.prepare('UPDATE players SET gear=? WHERE id=?').run(JSON.stringify(gear),pId);db.prepare('INSERT INTO results VALUES(?,?,?,?,?,?,?)').run(s.id,pId,s.score,s.salvage,s.elapsed,s.relic,Date.now());db.prepare('UPDATE players SET salvage=salvage+?,wins=wins+1,best=MAX(best,?) WHERE id=?').run(s.salvage,s.score,pId);db.exec('COMMIT');s.result={score:s.score,salvage:s.salvage,seconds:Math.round(s.elapsed)};}
   catch(e){db.exec('ROLLBACK');s.recorded=false;console.error('Could not save result:',e.message);}
 }
-setInterval(()=>{const now=Date.now();for(const [id,s] of runs){try{tick(s,1/30,now);if(s.usedPotions>s.potionsDebited){const n=s.usedPotions-s.potionsDebited;db.prepare('UPDATE players SET potions=MAX(0,potions-?) WHERE id=?').run(n,id);s.potionsDebited=s.usedPotions;}saveResult(id,s);}catch(e){console.error(e);s.status='error';}if(now-s.started>45*60*1000)runs.delete(id);}for(const [k,v] of rates)if(now-v.start>60000)rates.delete(k);},1000/30).unref();
+setInterval(()=>{const now=Date.now();for(const [id,s] of runs){try{tick(s,1/30,now);if(s.inventory&&s.savedInventory!==s.inventory.join(',')){const g=JSON.parse(fresh(id).gear||'{}');g.foundWeapons=[...new Set([...foundWeapons(g),...s.inventory])];db.prepare('UPDATE players SET gear=? WHERE id=?').run(JSON.stringify(g),id);s.savedInventory=s.inventory.join(',');}if(s.usedPotions>s.potionsDebited){const n=s.usedPotions-s.potionsDebited;db.prepare('UPDATE players SET potions=MAX(0,potions-?) WHERE id=?').run(n,id);s.potionsDebited=s.usedPotions;}saveResult(id,s);}catch(e){console.error(e);s.status='error';}if(now-(s.mode==='survival'?s.lastInputAt:s.started)>45*60*1000)runs.delete(id);}for(const [k,v] of rates)if(now-v.start>60000)rates.delete(k);},1000/30).unref();
 async function body(req){let s='';for await(const c of req){s+=c;if(s.length>4096)throw Error('Request too large');}return s?JSON.parse(s):{};}
 const server=http.createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','DENY');
@@ -68,7 +74,7 @@ const server=http.createServer(async(req,res)=>{
         issueSession(res,saved.id);return json(res,200,state(saved));
       }
       if(req.method==='POST'&&url.pathname==='/api/safehouse/enter'){
-        const s=runs.get(p.id);if(s?.status==='active'){if(!safeArea(s.player)||![SAFEHOUSE,FORGE,SUPPLIES].some(q=>near(s.player,q,130)))return json(res,400,{error:'Reach the Hearthhall door or a harbour merchant first.'});s.inSafehouse=true;s.input={};s.commands={};s.player.vx=s.player.vy=0;}
+        const s=runs.get(p.id);if(s?.status==='active'){if(!safeArea(s.player)||![SAFEHOUSE,FORGE,SUPPLIES,...CAMPS].some(q=>near(s.player,q,130)))return json(res,400,{error:'Reach the Hearthhall door or a harbour merchant first.'});s.inSafehouse=true;s.input={};s.commands={};s.player.vx=s.player.vy=0;}
         return json(res,200,state(fresh(p.id)));
       }
       if(req.method==='POST'&&url.pathname==='/api/safehouse/exit'){const s=runs.get(p.id);if(s){s.inSafehouse=false;s.input={};s.commands={};s.lastInputAt=Date.now();}return json(res,200,{run:s?snapshot(s):null});}
@@ -78,7 +84,7 @@ const server=http.createServer(async(req,res)=>{
       if(req.method==='POST'&&url.pathname==='/api/weapon/equip'){
         if(!Object.hasOwn(WEAPONS,b.weapon))return json(res,400,{error:'Choose an available weapon.'});
         const s=runs.get(p.id);if(s?.status==='active'&&s.player.action!=='idle')return json(res,400,{error:'Finish your current move before switching weapons.'});
-        const gear=JSON.parse(fresh(p.id).gear||'{}');gear.weapon=b.weapon;db.prepare('UPDATE players SET gear=? WHERE id=?').run(JSON.stringify(gear),p.id);
+        const gear=JSON.parse(fresh(p.id).gear||'{}');const available=s?.status==='active'?(s.inventory||foundWeapons(gear)):foundWeapons(gear);if(!available.includes(b.weapon))return json(res,400,{error:'Discover this weapon in a cache first.'});gear.weapon=b.weapon;gear.foundWeapons=available;db.prepare('UPDATE players SET gear=? WHERE id=?').run(JSON.stringify(gear),p.id);
         if(s?.status==='active'){s.player.weapon=b.weapon;s.player.combo=0;s.player.comboWindow=0;s.buffer=null;}
         return json(res,200,state(fresh(p.id)));
       }
@@ -103,7 +109,7 @@ const server=http.createServer(async(req,res)=>{
       }
       if(req.method==='POST'&&url.pathname==='/api/start'){
         if(!p.username_created)return json(res,400,{error:'Choose a username before starting your free adventure.'});
-        let s=runs.get(p.id);if(!s||s.status!=='active'){s=createRun(randomUUID(),Date.now(),profile(p));runs.set(p.id,s);}s.inSafehouse=false;s.paused=false;return json(res,200,{run:snapshot(s)});
+        let s=runs.get(p.id);if(!s||s.status!=='active'){s=createRun(randomUUID(),Date.now(),{...profile(p),mode:'survival'});runs.set(p.id,s);}s.inSafehouse=false;s.paused=false;return json(res,200,{run:snapshot(s)});
       }
       if(req.method==='POST'&&url.pathname==='/api/pause'){const s=runs.get(p.id);if(s?.status==='active'){s.paused=b.paused===true;s.input={};s.commands={};s.held={};s.player.vx=s.player.vy=0;s.lastInputAt=Date.now();}return json(res,200,{run:s?snapshot(s):null});}
       if(req.method==='POST'&&url.pathname==='/api/input'){
@@ -132,8 +138,8 @@ const server=http.createServer(async(req,res)=>{
     const files={'/':'solo.html','/solo':'solo.html','/index.html':'index.html','/style.css':'style.css','/app.js':'app.js','/game.js':'game.js','/world.js':'world.js','/combat.js':'combat.js','/catalog.js':'catalog.js','/scene3d.js':'scene3d.js','/icon.svg':'icon.svg','/vendor/three.module.js':'vendor/three.module.js','/vendor/three.core.min.js':'vendor/three.core.min.js','/vendor/THREE-LICENSE.txt':'vendor/THREE-LICENSE.txt'};
     files['/vendor/BufferGeometryUtils.js']='vendor/BufferGeometryUtils.js';files['/adventure.js']='adventure.js';files['/movement-preview.js']='movement-preview.js';
     files['/motion.js']='motion.js';files['/realism.js']='realism.js';files['/vendor/HDRLoader.js']='vendor/HDRLoader.js';
-    for(const file of ['mobile-controls.js','mobile-polish.css','sample-mixer.js','audio-manifest.js','audio-controls.js','audio-controls.css','audio-credits.html','cinematic.js','combat-presentation.js','audio.js','characters.js','heroes.js','hero-choice.js','storm-theme.css','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
-    for(const name of ['actors','environment','lighting','harbour','quality','palette','assets','asset-cache','sunken-isles','harbour-terrain','harbour-refurbish'])files['/scene/'+name+'.js']='scene/'+name+'.js';
+    for(const file of ['survival.js','voyage-data.js','exploration.js','bright-lobby.css','mobile-controls.js','mobile-polish.css','sample-mixer.js','audio-manifest.js','audio-controls.js','audio-controls.css','audio-credits.html','cinematic.js','combat-presentation.js','audio.js','characters.js','heroes.js','hero-choice.js','storm-theme.css','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
+    for(const name of ['voyage','actors','environment','lighting','harbour','quality','palette','assets','asset-cache','sunken-isles','harbour-terrain','harbour-refurbish'])files['/scene/'+name+'.js']='scene/'+name+'.js';
     files['/asset-manifest.js']='asset-manifest.js';
     for(const name of ['config','state','input','movement','hitboxes','combat','rounds','ai','engine','client','view','fighters','environment','catalog','preview','audio'])files['/arcade/'+name+'.js']='arcade/'+name+'.js';
     files['/arcade']='arcade.html';files['/arcade.html']='arcade.html';files['/arcade/style.css']='arcade/style.css';files['/arcade/landing.css']='arcade/landing.css';

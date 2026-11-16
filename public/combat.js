@@ -1,3 +1,6 @@
+import {startSurvival,survivalStep} from './survival.js';
+import {regionFor,CAMPS,foundWeapons} from './voyage-data.js';
+import {explorationPrompt,explore} from './exploration.js';
 import {MOTION,locomotion} from './motion.js';
 import {HOME,SHRINE,BOSS,RELICS,walkable,moveBody} from './world.js';
 import {loadoutStats,safeArea,WEAPONS,SAFEHOUSE,FORGE,SUPPLIES} from './catalog.js';
@@ -7,11 +10,12 @@ export const COMBO_HITS=3;
 export const POWERUPS={overdrive:{name:'Overdrive',description:'+25% strike damage',duration:14},aegis:{name:'Aegis',description:'35% damage reduction',duration:14},surge:{name:'Surge',description:'Double stamina recovery',duration:14}};
 
 export function interactionFor(s){
- if(!s||s.status!=='active'||s.inSafehouse||s.paused)return null;const p=s.player;
- if(s.bossDead&&distance(p,HOME)<115)return {kind:'extract',label:'Return with salvage',ready:true};
+ if(!s||s.status!=='active'||s.inSafehouse||s.paused||s.travel)return null;const p=s.player;
+ if(s.mode!=='survival'&&s.bossDead&&distance(p,s.home||HOME)<115)return {kind:'extract',label:'Return with salvage',ready:true};
+ const discovery=explorationPrompt(s);if(discovery)return discovery;
  if(!s.chest&&distance(p,{x:580,y:720})<95)return {kind:'chest',label:'Open cache · heal + salvage',ready:true};
- if(!s.relic&&distance(p,SHRINE)<130)return {kind:'relic',label:s.relicReady?'Choose relic':'Defeat both shrine guardians',ready:!!s.relicReady};
- if([FORGE,SUPPLIES].some(q=>distance(p,q)<115))return {kind:'forge',label:'Open shop',ready:true};
+ if(s.mode!=='survival'&&!s.relic&&distance(p,s.shrine||SHRINE)<130)return {kind:'relic',label:s.relicReady?'Choose relic':'Defeat both shrine guardians',ready:!!s.relicReady};
+ if([FORGE,SUPPLIES,...CAMPS].some(q=>distance(p,q)<115))return {kind:'forge',label:'Open shop',ready:true};
  if(distance(p,SAFEHOUSE)<115)return {kind:'hearth',label:'Enter Hearthhall',ready:true};
  return null;
 }
@@ -27,14 +31,16 @@ function chase(e,p,speed,dt){const angle=Math.atan2(p.y-e.y,p.x-e.x);if(move(e,M
 export function weaponAttack(p,key){const a=ATTACKS[key];if(!a)return null;const w=WEAPONS[p.weapon]||WEAPONS.axe;if(p.weapon==='gun')return {...a,name:key==='heavy'?'Overcharge':key==='finisher'?'Pulse breaker':'Pulse shot',damage:key==='heavy'?48:key==='finisher'?70:22,duration:key==='heavy'?.85:key==='finisher'?.9:.4,hit:.08,range:480,cost:key==='heavy'?22:key==='finisher'?28:10,arc:.16,lunge:0};const fin=key==='finisher'?({axe:{name:'Rift sweep',arc:Math.PI,range:155,damage:72},sword:{name:'Royal breaker',arc:1.8,range:165,damage:85},spear:{name:'Impaling storm',arc:.8,range:220,damage:90}}[p.weapon]||{}):{};return {...a,...fin,damage:Math.round((fin.damage||a.damage)*w.damage),duration:a.duration*w.speed,hit:a.hit*w.speed,range:(fin.range||a.range)*w.reach,cost:Math.ceil(a.cost*w.cost),arc:fin.arc??(p.weapon==='spear'?a.arc*.6:a.arc)};}
 export function createRun(id,now=Date.now(),options={}){
  const stats=loadoutStats(options.gear,options.wins);
- const chapter=Math.min(3,Math.max(1,Math.floor(Number(options.wins)||0)+1));
- const deployment=chapter===1?HOME:chapter===2?{x:930,y:1100}:{x:1650,y:795};
+ const chapter=options.mode==='survival'?1:Math.min(3,Math.max(1,Math.floor(Number(options.wins)||0)+1));
+ const region=regionFor(chapter),deployment=region.home;
  const definitions=[['raider',730,1160],['raider',925,1140],['archer',1305,1115],['brute',1380,920],['raider',935,850],['archer',730,705],['brute',590,810],['raider',1650,825],['archer',1800,885],['raider',2090,580]];
- return {id,chapter,started:now,elapsed:0,status:'active',inSafehouse:false,player:{...deployment,...stats,weapon:Object.hasOwn(WEAPONS,options.gear?.weapon)?options.gear.weapon:'axe',powerup:null,powerTime:0,riposteWindow:0,hp:stats.maxHp,stamina:stats.maxStamina,angle:-Math.PI/2,vx:0,vy:0,moveAngle:-Math.PI/2,sprinting:false,attack:0,dodge:0,storm:0,potionCooldown:0,invulnerable:0,dashing:0,slash:0,action:'idle',actionTime:0,actionDuration:0,actionId:0,combo:0,comboWindow:0,comboCharge:0,hitDone:false,guard:false,guardAge:0,staminaDelay:0,potions:clamp(options.potions??1,0,3)},
+ if(chapter>1){const a=region.shrine;definitions.splice(0,definitions.length,...[['raider',a.x-180,a.y+90],['archer',a.x+100,a.y+110],['raider',a.x-100,a.y-140],['brute',a.x+60,a.y-30],['raider',a.x-60,a.y+20],['archer',region.boss.x-130,region.boss.y+160],['brute',region.boss.x+80,region.boss.y+90],['raider',region.boss.x-90,region.boss.y-70]]);}
+ const result={id,chapter,expeditionVersion:2,home:{...region.home},shrine:{...region.shrine},bossName:region.bossName,inventory:foundWeapons(options.gear),openedCaches:[],started:now,elapsed:0,status:'active',inSafehouse:false,player:{...deployment,...stats,weapon:Object.hasOwn(WEAPONS,options.gear?.weapon)?options.gear.weapon:'axe',powerup:null,powerTime:0,riposteWindow:0,hp:stats.maxHp,stamina:stats.maxStamina,angle:-Math.PI/2,vx:0,vy:0,moveAngle:-Math.PI/2,sprinting:false,attack:0,dodge:0,storm:0,potionCooldown:0,invulnerable:0,dashing:0,slash:0,action:'idle',actionTime:0,actionDuration:0,actionId:0,combo:0,comboWindow:0,comboCharge:0,hitDone:false,guard:false,guardAge:0,staminaDelay:0,potions:clamp(options.potions??1,0,3)},
  enemies:definitions.map(([type,x,y],i)=>({id:i,type,x,y,homeX:x,homeY:y,hp:type==='brute'?130:type==='archer'?64:80,maxHp:type==='brute'?130:type==='archer'?64:80,cd:1+i*.08,wind:0,angle:0,flash:0,stagger:0,swing:0,death:0,vx:0,vy:0})),
- boss:{id:99,type:'boss',...BOSS,hp:600+(chapter-1)*120,maxHp:600+(chapter-1)*120,cd:2,wind:0,angle:0,flash:0,stagger:0,swing:0,death:0,vx:0,vy:0,awake:false,phase:1},
+ boss:{id:99,type:'boss',...region.boss,hp:600+(chapter-1)*120,maxHp:600+(chapter-1)*120,cd:2,wind:0,angle:0,flash:0,stagger:0,swing:0,death:0,vx:0,vy:0,awake:false,phase:1},
  input:{dx:0,dy:0,angle:-Math.PI/2},held:{},commands:{},commandIds:{},buffer:null,kills:0,salvage:0,score:0,relic:null,relicReady:false,bossDead:false,chest:false,usedPotions:0,potionsDebited:0,
  shots:[],effects:[],events:[],eventId:0,damageTaken:0,sequence:0,lastInputAt:now,result:null};
+ return options.mode==='survival'?startSurvival(result):result;
 }
 function event(s,type,data={}){s.events.push({id:++s.eventId,type,...data});if(s.events.length>24)s.events.shift();}
 function effect(s,type,x,y,life=.45,extra={}){s.effects.push({type,x,y,life,maxLife:life,...extra});}
@@ -43,7 +49,7 @@ function hitEnemy(s,e,damage,stagger=0,knock=0){if(e.hp<=0)return;damage=Math.ro
  if(stagger){e.stagger=Math.max(e.stagger,e.type==='boss'?stagger*.28:stagger);if(e.type!=='boss')e.wind=0;}if(knock){const a=Math.atan2(e.y-s.player.y,e.x-s.player.x);move(e,Math.cos(a)*knock,Math.sin(a)*knock,18);}
  if(!e.hp){s.kills++;if(e.type!=='boss'&&s.kills%3===0){const key=['overdrive','aegis','surge'][(s.kills/3-1)%3];s.player.powerup=key;s.player.powerTime=POWERUPS[key].duration;event(s,'powerup',{key});}s.score+=e.type==='boss'?500:e.type==='brute'?90:60;s.salvage+=e.type==='boss'?80:12;e.death=1.4;effect(s,'death',e.x,e.y,.8);event(s,'kill',{enemy:e.type});if(e.type==='boss'){s.bossDead=true;event(s,'boss-defeated');}}
 }
-function hurt(s,damage,x,y,source){const p=s.player;if(p.invulnerable>0||s.status!=='active'||safeArea(p)||s.inSafehouse)return;
+function hurt(s,damage,x,y,source){const p=s.player;if(p.invulnerable>0||s.status!=='active'||(s.mode!=='survival'&&safeArea(p))||s.inSafehouse)return;
  const facing=Math.abs(angleDifference(Math.atan2(y-p.y,x-p.x),p.angle))<1.5;
  if(p.guard&&facing&&p.stamina>damage*.7){spend(p,damage*.7);if(p.guardAge<.2){if(source){source.stagger=1.2;source.wind=0;}p.stamina=Math.min(p.maxStamina,p.stamina+10);p.riposteWindow=1.4;effect(s,'parry',p.x,p.y,.5);event(s,'parry');return;}damage=Math.ceil(damage*.2);effect(s,'block',p.x,p.y,.3);event(s,'block');}
  if(p.powerup==='aegis'&&p.powerTime>0)damage=Math.ceil(damage*.65);p.hp=Math.max(0,p.hp-damage);s.damageTaken+=damage;p.invulnerable=.62;effect(s,'hurt',p.x,p.y,.3);event(s,'hurt');const a=Math.atan2(p.y-y,p.x-x);move(p,Math.cos(a)*13,Math.sin(a)*13);if(!p.hp){s.status='dead';event(s,'defeated');}
@@ -55,7 +61,7 @@ export function setInput(s,b,now=Date.now()){
  s.input=input;s.lastInputAt=now;
 }
 export function applyLoadout(s,options){const stats=loadoutStats(options.gear,options.wins),p=s.player;const oldMax=p.maxHp;Object.assign(p,stats);if(s.relic==='raven')p.maxHp-=40;p.hp=Math.min(p.maxHp,p.hp+Math.max(0,p.maxHp-oldMax));p.stamina=Math.min(p.maxStamina,p.stamina);p.potions=clamp(options.potions,0,3);}
-export function chooseRelic(s,key){if(s.status!=='active'||s.relic||!s.relicReady||!RELICS[key]||distance(s.player,SHRINE)>130)return false;s.relic=key;s.score+=100;if(key==='raven'){s.player.maxHp-=40;s.player.hp=Math.min(s.player.maxHp,s.player.hp);}else s.player.hp=Math.min(s.player.maxHp,s.player.hp+30);event(s,'relic',{key});return true;}
+export function chooseRelic(s,key){if(s.status!=='active'||s.relic||!s.relicReady||!RELICS[key]||distance(s.player,s.shrine||SHRINE)>130)return false;s.relic=key;s.score+=100;if(key==='raven'){s.player.maxHp-=40;s.player.hp=Math.min(s.player.maxHp,s.player.hp);}else s.player.hp=Math.min(s.player.maxHp,s.player.hp+30);event(s,'relic',{key});return true;}
 function beginStrike(s,kind,deliberate){const p=s.player;if(p.dashing>0)return false;const follow=deliberate&&p.comboWindow>0;
  if(kind==='combo'&&(p.comboCharge||0)<COMBO_HITS)return false;
  const key=kind==='attack'&&p.weapon!=='gun'&&p.riposteWindow>0?'riposte':kind==='combo'?'finisher':kind==='heavy'?(follow&&p.combo===2?'finisher':'heavy'):follow&&p.combo===1?'light2':follow&&p.combo===2?'finisher':'light1';const a=weaponAttack(p,key);if(!spend(p,a.cost))return false;
@@ -85,6 +91,7 @@ export function retireGun(s){
 export function tick(s,dt,now=Date.now()){
  retireGun(s);
  if(s.status!=='active')return;dt=clamp(dt,0,.06);const p=s.player;
+ if(s.travel&&!s.paused){s.travel.remaining-=dt;s.player.vx=s.player.vy=0;s.input={};s.commands={};s.held={};if(s.travel.remaining<=0){Object.assign(s.player,s.travel.to,{vx:0,vy:0,invulnerable:1});s.travel=null;s.lastInputAt=now;event(s,'arrived',{text:'Landfall · follow the shrine marker'});}return;}
  if(s.inSafehouse||s.paused){p.vx=p.vy=0;s.input={};s.commands={};s.held={};return;}
  p.powerTime=Math.max(0,(p.powerTime||0)-dt);if(!p.powerTime)p.powerup=null;p.riposteWindow=Math.max(0,(p.riposteWindow||0)-dt);
  s.elapsed+=dt;s.sequence++;const stale=now-s.lastInputAt>700,input=stale?{}:s.input;
@@ -111,15 +118,16 @@ export function tick(s,dt,now=Date.now()){
  if(p.staminaDelay<=0&&!p.guard&&!p.sprinting)p.stamina=Math.min(p.maxStamina,p.stamina+26*dt*(p.powerup==='surge'&&p.powerTime>0?2:1));
  if(pressed.storm&&p.storm<=0&&spend(p,30)){p.storm=8;effect(s,'storm',p.x,p.y,.65);[...s.enemies,...(s.boss.awake?[s.boss]:[])].filter(e=>e.hp>0&&distance(p,e)<225).forEach(e=>hitEnemy(s,e,48,.25,12));event(s,'storm');}
  if(pressed.potion&&p.potions>0&&p.hp<p.maxHp&&p.potionCooldown<=0){p.potions--;s.usedPotions++;p.hp=Math.min(p.maxHp,p.hp+60);p.potionCooldown=3;effect(s,'heal',p.x,p.y,.8);event(s,'potion');}
- s.relicReady=s.enemies[3].hp<=0&&s.enemies[4].hp<=0;
+ const interacting=!!input.interact&&!s.interactHeld;s.interactHeld=!!input.interact;if(interacting&&explore(s,explorationPrompt(s),event)&&s.travel)return;
+ s.relicReady=s.mode!=='survival'&&s.enemies[3]?.hp<=0&&s.enemies[4]?.hp<=0;
  if(input.interact&&!s.chest&&distance(p,{x:580,y:720})<95){s.chest=true;s.salvage+=40;p.hp=Math.min(p.maxHp,p.hp+45);effect(s,'heal',p.x,p.y,.8);event(s,'chest');}
  if(s.relic&&distance(p,s.boss)<410&&!s.boss.awake){s.boss.awake=true;event(s,'boss-awake');}
  for(const e of [...s.enemies,s.boss]){e.flash=Math.max(0,e.flash-dt);e.stagger=Math.max(0,e.stagger-dt);e.swing=Math.max(0,e.swing-dt);e.death=Math.max(0,e.death-dt);e.vx=e.vy=0;}
  for(const e of s.enemies){if(e.hp<=0||e.stagger>0)continue;e.cd-=dt;const oldX=e.x,oldY=e.y;
-  if(safeArea(p)){e.wind=0;if(Math.hypot(e.homeX-e.x,e.homeY-e.y)>8)chase(e,{x:e.homeX,y:e.homeY},95,dt);continue;}
+  if(s.mode!=='survival'&&safeArea(p)){e.wind=0;if(Math.hypot(e.homeX-e.x,e.homeY-e.y)>8)chase(e,{x:e.homeX,y:e.homeY},95,dt);continue;}
   const d=distance(p,e);
   if(e.wind>0){e.wind-=dt;if(e.wind<=0){e.swing=.3;if(e.type==='archer')s.shots.push({x:e.x,y:e.y,vx:Math.cos(e.angle)*335,vy:Math.sin(e.angle)*335,life:2.6});else {if(e.type==='raider')move(e,Math.cos(e.angle)*24,Math.sin(e.angle)*24,18);if(distance(p,e)<(e.type==='brute'?120:78))hurt(s,e.type==='brute'?24:12,e.x,e.y,e);}e.cd=e.type==='brute'?1.8:e.type==='archer'?1.4:1.05;}}
-  else if(d<410){e.angle+=clamp(angleDifference(Math.atan2(p.y-e.y,p.x-e.x),e.angle),-dt*9,dt*9);const reach=e.type==='archer'?290:e.type==='brute'?92:61;if(e.type==='archer'&&d<150)move(e,-Math.cos(e.angle)*95*dt,-Math.sin(e.angle)*95*dt,18);else if(d>reach)chase(e,p,e.type==='brute'?80:125,dt);else if(e.cd<=0)e.wind=e.type==='brute'?.85:e.type==='archer'?.62:.48;}
+  else if(s.mode==='survival'||d<410){e.angle+=clamp(angleDifference(Math.atan2(p.y-e.y,p.x-e.x),e.angle),-dt*9,dt*9);const reach=e.type==='archer'?290:e.type==='brute'?92:61;if(e.type==='archer'&&d<150)move(e,-Math.cos(e.angle)*95*dt,-Math.sin(e.angle)*95*dt,18);else if(d>reach)chase(e,p,e.type==='brute'?80:125,dt);else if(e.cd<=0)e.wind=e.type==='brute'?.85:e.type==='archer'?.62:.48;}
   e.vx=(e.x-oldX)/dt;e.vy=(e.y-oldY)/dt;
  }
  // Keep hostile bodies separated instead of stacking in a single point.
@@ -130,7 +138,8 @@ export function tick(s,dt,now=Date.now()){
   else{const d=distance(p,b);b.angle=Math.atan2(p.y-b.y,p.x-b.x);if(d>128)chase(b,p,88,dt);if(b.cd<=0&&d<420){b.wind=b.phase===2?.85:1.15;b.targetX=p.x;b.targetY=p.y;b.radius=b.phase===2?150:120;event(s,'boss-slam');}}b.vx=(b.x-oldX)/dt;b.vy=(b.y-oldY)/dt;
  }
  s.shots=s.shots.filter(q=>{q.x+=q.vx*dt;q.y+=q.vy*dt;q.life-=dt;if(distance(q,p)<23){hurt(s,13,q.x,q.y);return false;}return q.life>0;});s.effects=s.effects.filter(f=>(f.life-=dt)>0);
- if(s.status==='active'&&input.interact&&s.bossDead&&distance(p,HOME)<115){s.status='won';s.score+=Math.max(0,Math.round(300-s.elapsed*.45));event(s,'extracted');}
- if(s.status==='active'&&s.elapsed>=720){s.status='expired';event(s,'expired');}
+ if(s.mode!=='survival'&&s.status==='active'&&input.interact&&s.bossDead&&distance(p,s.home||HOME)<115){s.status='won';s.score+=Math.max(0,Math.round(300-s.elapsed*.45));event(s,'extracted');}
+ if(s.mode!=='survival'&&s.status==='active'&&s.elapsed>=(s.expeditionVersion===2?1800:720)){s.status='expired';event(s,'expired');}
+ survivalStep(s,dt,event);
 }
 export function snapshot(s){retireGun(s);const {input,lastInputAt,started,held,commands,commandIds,buffer,...out}=s;return out;}

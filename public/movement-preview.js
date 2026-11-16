@@ -9,7 +9,7 @@ export class MovementPreview {
   const previous=this.player,same=this.id===run.id;
   this.source=run;this.received=now;this.id=run.id;
   this.player={...p};
-  if(previous&&same&&run.status==='active'&&!run.paused&&!run.inSafehouse){
+  if(previous&&same&&run.status==='active'&&!run.paused&&!run.inSafehouse&&!run.travel){
    // Compare the response with the display at request time, not with today's
    // position. Otherwise ordinary network latency continually brakes movement.
    const past=this.history.reduce((best,h)=>Math.abs(h.time-sentAt)<Math.abs(best.time-sentAt)?h:best,{time:now,x:previous.x,y:previous.y});
@@ -28,7 +28,7 @@ export class MovementPreview {
   return pose;
  }
  advance(input,dt,now){if(!this.player||!this.source)return null;const p=this.player,s=this.source,authority=s.player;dt=clamp(dt,0,.05);
-  if(s.status!=='active'||s.paused||s.inSafehouse){Object.assign(p,authority,{vx:0,vy:0});return {...p};}
+  if(s.status!=='active'||s.paused||s.inSafehouse||s.travel){Object.assign(p,authority,{vx:0,vy:0});return {...p};}
   if(now-this.received>700){if(Math.hypot(input.dx||0,input.dy||0)>.05)Object.assign(p,authority);p.vx=p.vy=0;return {...p,preview:true};}
   // Only the local display is predicted. Damage, stamina, rewards and collisions remain authoritative.
   let dx=input.dx||0,dy=input.dy||0;const mag=Math.hypot(dx,dy);if(mag>1){dx/=mag;dy/=mag;}

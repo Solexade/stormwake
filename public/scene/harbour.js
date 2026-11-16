@@ -1,3 +1,4 @@
+import {initialQuality} from './quality.js';
 import * as THREE from '../vendor/three.module.js';
 import {LAND, landAt} from '../world.js';
 
@@ -99,32 +100,30 @@ export function fitHarbourAsset(model, {x,z,radius,height,y=0,angle=0}) {
  return group;
 }
 export function createHarbourAssets(scene,canvas,load,onReady=()=>{}) {
- const entries=[];let high=!globalThis.matchMedia?.('(any-pointer:coarse)').matches;
+ const entries=[];let quality=initialQuality(!!globalThis.matchMedia?.('(any-pointer:coarse)').matches);
+ const assetId=e=>typeof e.id==='string'?e.id:e.id[quality]||e.id.medium;
  const sync=()=>{
-  for(const e of entries){e.fallback.visible=!high||!e.model;if(e.model)e.model.visible=high;}
-  canvas.dataset.harbourAssets=String(entries.filter(e=>e.model).length);
-  canvas.dataset.harbourPending=String(entries.filter(e=>e.pending).length);
-  canvas.dataset.harbourFailures=String(entries.filter(e=>e.error).length);
+  for(const e of entries){const selected=quality==='low'?null:e.models.get(assetId(e));e.fallback.visible=!selected;for(const [id,model]of e.models)model.visible=model===selected;}
+  canvas.dataset.harbourAssets=String(entries.filter(e=>e.models.size).length);
+  canvas.dataset.harbourPending=String(entries.reduce((n,e)=>n+e.pending.size,0));
+  canvas.dataset.harbourFailures=String(entries.filter(e=>e.errors.size).length);
   canvas.dataset.harbourLoadMs=String(Math.round(Math.max(0,...entries.map(e=>e.duration||0))));
  };
  const start=e=>{
-  if(e.model)return Promise.resolve();
-  if(e.pending)return e.pending;
-  e.error=null;const began=performance.now();
-  e.pending=Promise.resolve().then(()=>load(e.id)).then(g=>{
-   const model=fitHarbourAsset(g.scene,e.placement);
-   // Prepare before publishing so a failed preparation cannot leave a duplicate.
-   onReady(model);e.model=model;scene.add(model);
-  }).catch(error=>{e.error=String(error?.message||error);console.warn('Harbour asset fallback:',e.id,e.error);})
-  .finally(()=>{e.duration=performance.now()-began;e.pending=null;sync();});
-  sync();return e.pending;
+  const id=assetId(e);if(e.models.has(id))return Promise.resolve();if(e.pending.has(id))return e.pending.get(id);
+  e.errors.delete(id);const began=performance.now();
+  const pending=Promise.resolve().then(()=>load(id)).then(g=>{
+   const model=fitHarbourAsset(g.scene,e.placement);onReady(model);e.models.set(id,model);scene.add(model);
+  }).catch(error=>{e.errors.set(id,String(error?.message||error));console.warn('Harbour asset fallback:',id,error);})
+  .finally(()=>{e.duration=performance.now()-began;e.pending.delete(id);sync();});
+  e.pending.set(id,pending);sync();return pending;
  };
  return {
   add(id,fallback,placement){
    if(entries.some(e=>e.fallback===fallback))throw Error('Fallback already registered');
-   const entry={id,placement,fallback,model:null,pending:null,error:null};entries.push(entry);sync();return high?start(entry):Promise.resolve();
+   const entry={id,placement,fallback,models:new Map(),pending:new Map(),errors:new Map()};entries.push(entry);sync();return quality!=='low'?start(entry):Promise.resolve();
   },
-  setQuality(value){high=value!=='low';const pending=high?entries.map(start):[];sync();return Promise.all(pending);},
-  retry(){return high?Promise.all(entries.filter(e=>e.error).map(start)):Promise.resolve();}
+  setQuality(value){quality=['high','medium','low'].includes(value)?value:'high';const pending=quality!=='low'?entries.map(start):[];sync();return Promise.all(pending);},
+  retry(){return quality!=='low'?Promise.all(entries.filter(e=>e.errors.has(assetId(e))).map(start)):Promise.resolve();}
  };
 }
