@@ -40,7 +40,7 @@ export function createRun(id,now=Date.now(),options={}){
  boss:{id:99,type:'boss',...region.boss,hp:600+(chapter-1)*120,maxHp:600+(chapter-1)*120,cd:2,wind:0,angle:0,flash:0,stagger:0,swing:0,death:0,vx:0,vy:0,awake:false,phase:1},
  input:{dx:0,dy:0,angle:-Math.PI/2},held:{},commands:{},commandIds:{},buffer:null,kills:0,salvage:0,score:0,relic:null,relicReady:false,bossDead:false,chest:false,usedPotions:0,potionsDebited:0,
  shots:[],effects:[],events:[],eventId:0,damageTaken:0,sequence:0,lastInputAt:now,result:null};
- return options.mode==='survival'?startSurvival(result):result;
+ return options.mode==='survival'?startSurvival(result,options.arena):result;
 }
 function event(s,type,data={}){s.events.push({id:++s.eventId,type,...data});if(s.events.length>24)s.events.shift();}
 function effect(s,type,x,y,life=.45,extra={}){s.effects.push({type,x,y,life,maxLife:life,...extra});}

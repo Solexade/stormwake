@@ -1,5 +1,7 @@
+import {arenaFor} from './arenas.js';
 import {walkable} from './world.js';
-export function startSurvival(s){
+export function startSurvival(s,arenaId){
+ const arena=arenaFor(arenaId);s.arenaId=arena.id;s.arenaName=arena.name;s.home={x:arena.x,y:arena.y};Object.assign(s.player,s.home);
  s.mode='survival';s.survivalVersion=1;s.wave=0;s.nextWave=2;s.enemies=[];
  s.boss.hp=0;s.boss.awake=false;s.bossDead=false;s.relicReady=false;
  return s;

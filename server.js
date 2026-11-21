@@ -109,7 +109,7 @@ const server=http.createServer(async(req,res)=>{
       }
       if(req.method==='POST'&&url.pathname==='/api/start'){
         if(!p.username_created)return json(res,400,{error:'Choose a username before starting your free adventure.'});
-        let s=runs.get(p.id);if(!s||s.status!=='active'){s=createRun(randomUUID(),Date.now(),{...profile(p),mode:'survival'});runs.set(p.id,s);}s.inSafehouse=false;s.paused=false;return json(res,200,{run:snapshot(s)});
+        let s=runs.get(p.id);if(!s||s.status!=='active'){s=createRun(randomUUID(),Date.now(),{...profile(p),mode:'survival',arena:b.arena});runs.set(p.id,s);}s.inSafehouse=false;s.paused=false;return json(res,200,{run:snapshot(s)});
       }
       if(req.method==='POST'&&url.pathname==='/api/pause'){const s=runs.get(p.id);if(s?.status==='active'){s.paused=b.paused===true;s.input={};s.commands={};s.held={};s.player.vx=s.player.vy=0;s.lastInputAt=Date.now();}return json(res,200,{run:s?snapshot(s):null});}
       if(req.method==='POST'&&url.pathname==='/api/input'){
@@ -138,7 +138,7 @@ const server=http.createServer(async(req,res)=>{
     const files={'/':'solo.html','/solo':'solo.html','/index.html':'index.html','/style.css':'style.css','/app.js':'app.js','/game.js':'game.js','/world.js':'world.js','/combat.js':'combat.js','/catalog.js':'catalog.js','/scene3d.js':'scene3d.js','/icon.svg':'icon.svg','/vendor/three.module.js':'vendor/three.module.js','/vendor/three.core.min.js':'vendor/three.core.min.js','/vendor/THREE-LICENSE.txt':'vendor/THREE-LICENSE.txt'};
     files['/vendor/BufferGeometryUtils.js']='vendor/BufferGeometryUtils.js';files['/adventure.js']='adventure.js';files['/movement-preview.js']='movement-preview.js';
     files['/motion.js']='motion.js';files['/realism.js']='realism.js';files['/vendor/HDRLoader.js']='vendor/HDRLoader.js';
-    for(const file of ['survival.js','voyage-data.js','exploration.js','bright-lobby.css','mobile-controls.js','mobile-polish.css','sample-mixer.js','audio-manifest.js','audio-controls.js','audio-controls.css','audio-credits.html','cinematic.js','combat-presentation.js','audio.js','characters.js','heroes.js','hero-choice.js','storm-theme.css','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
+    for(const file of ['arenas.js','arena-picker.js','survival.js','voyage-data.js','exploration.js','bright-lobby.css','mobile-controls.js','mobile-polish.css','sample-mixer.js','audio-manifest.js','audio-controls.js','audio-controls.css','audio-credits.html','cinematic.js','combat-presentation.js','audio.js','characters.js','heroes.js','hero-choice.js','storm-theme.css','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
     for(const name of ['voyage','actors','environment','lighting','harbour','quality','palette','assets','asset-cache','sunken-isles','harbour-terrain','harbour-refurbish'])files['/scene/'+name+'.js']='scene/'+name+'.js';
     files['/asset-manifest.js']='asset-manifest.js';
     for(const name of ['config','state','input','movement','hitboxes','combat','rounds','ai','engine','client','view','fighters','environment','catalog','preview','audio'])files['/arcade/'+name+'.js']='arcade/'+name+'.js';

@@ -67,6 +67,6 @@ test('HTTP sessions, score tampering, origin checks, and persistence',async t=>{
   for(const [legacy,destination] of [['/arcade','/'],['/arcade.html','/'],['/index.html','/'],['/solo.html','/solo']]){
     const redirect=await fetch(base+legacy,{redirect:'manual'});assert.equal(redirect.status,308);assert.equal(redirect.headers.get('location'),destination);
   }
-  response=await fetch(base+'/solo');const html=await response.text();assert.doesNotMatch(html,/walletBtn|Connect wallet|Save \/ wallet/);assert.match(html,/FREE SOLO ADVENTURE/);
+  response=await fetch(base+'/solo');const html=await response.text();assert.doesNotMatch(html,/walletBtn|Connect wallet|Save \/ wallet/);assert.match(html,/FREE SURVIVAL SERIES/);
 
 });
