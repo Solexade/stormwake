@@ -1,3 +1,4 @@
+import {firearmFor} from './arsenal.js';
 // Input intents only. The simulation decides whether a move can execute.
 export function stickIntent(x,y,radius=44){const length=Math.hypot(x,y),scale=length>radius?radius/length:1;return {x:x*scale,y:y*scale,axis:Math.abs(x)>radius*.25?(x<0?-1:1):0,jump:y<-radius*.55,crouch:y>radius*.55};}
 export function arcadeStrike(f){
@@ -10,7 +11,7 @@ export function arcadeStrike(f){
  if(f?.y>0)return {key:'j',label:'Air strike'};
  return {key:'i',label:'Jab'};
 }
-export function soloStrike(p){if(p?.riposteWindow>0&&p.weapon!=='gun')return {action:'attack',label:'Counter!'};return (p?.comboCharge||0)>=3?{action:'combo',label:'Finisher'}:p?.combo>=2&&p.comboWindow>0?{action:'heavy',label:'Breaker'}:{action:'attack',label:p?.comboWindow>0?'Backhand':'Strike'};}
+export function soloStrike(p){if(firearmFor(p?.weapon))return {action:'attack',label:'Fire'};if(p?.riposteWindow>0&&p.weapon!=='gun')return {action:'attack',label:'Counter!'};return (p?.comboCharge||0)>=3?{action:'combo',label:'Finisher'}:p?.combo>=2&&p.comboWindow>0?{action:'heavy',label:'Breaker'}:{action:'attack',label:p?.comboWindow>0?'Backhand':'Strike'};}
 export function bindMovementPad(element,onIntent){
  let pointer=null,lastJump=false;const thumb=element.querySelector('span');
  const reset=()=>{pointer=null;lastJump=false;thumb.style.transform='';onIntent({axis:0,crouch:false,jump:false});};

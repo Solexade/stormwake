@@ -2,14 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ARENAS} from '../public/arenas.js';
 import {createRun,tick} from '../public/combat.js';
-import {walkable} from '../public/world.js';
+import {walkable,landAt,WORLD} from '../public/world.js';
+import {WORLD_TRAILS,CACHES} from '../public/voyage-data.js';
+import {connectedEnemySpawn} from '../public/pursuit.js';
 import {newDb} from 'pg-mem';
 import {schema} from '../cloud/store.js';
 import {dispatch,openSession,persist} from '../cloud/game-service.js';
 test('each arena has a distinct safe spawn and spawns survival enemies',()=>{
- assert.equal(new Set(ARENAS.map(a=>a.x+','+a.y)).size,4);
+ assert.equal(new Set(ARENAS.map(a=>a.x+','+a.y)).size,6);
  for(const arena of ARENAS){const s=createRun(arena.id,1000,{mode:'survival',arena:arena.id});assert.equal(s.arenaId,arena.id);assert.equal(s.player.x,arena.x);assert.equal(s.player.y,arena.y);assert.ok(walkable(s.player.x,s.player.y,22));for(let i=0;i<80;i++)tick(s,.03,1000+i*30);assert.equal(s.wave,1);assert.ok(s.enemies.length>0);assert.ok(s.enemies.every(e=>walkable(e.x,e.y,18)));}
  const fallback=createRun('forged',1000,{mode:'survival',arena:'__proto__',x:99999});assert.equal(fallback.arenaId,'coast');assert.equal(fallback.player.x,465);
+});
+test('the eastern arenas connect to the coast by land or bridge and keep their estuary open',()=>{
+ assert.equal(WORLD.width,8000);
+ for(const arena of ARENAS.slice(-2))assert.ok(connectedEnemySpawn(arena,ARENAS[0]));
+ for(const path of WORLD_TRAILS.slice(-5))for(let i=1;i<path.length;i++){
+  const [ax,ay]=path[i-1],[bx,by]=path[i],count=Math.ceil(Math.hypot(bx-ax,by-ay)/10);
+  for(let j=0;j<=count;j++){
+   const x=ax+(bx-ax)*j/count,y=ay+(by-ay)*j/count;
+   assert.ok(walkable(x,y),[x,y].join(', '));
+  }
+ }
+ assert.equal(landAt(6730,2360),false);
+ assert.equal(walkable(6730,2495,22),true);
+ assert.ok(CACHES.slice(-7).every(c=>walkable(c.x,c.y,22)));
 });
 test('cloud validates arena selection, preserves active run and persists its location',async()=>{
  const db=newDb(),{Pool}=db.adapters.createPg(),pool=new Pool();await pool.query(schema);const c=await pool.connect();

@@ -1,5 +1,6 @@
+import {firearmFor,firearmAttack} from './arsenal.js';
 import {clearEnemyRoute,pursueEnemy} from './pursuit.js';
-import {startSurvival,survivalStep} from './survival.js';
+import {startSurvival,survivalStep,SURVIVAL_BOTS} from './survival.js';
 import {regionFor,CAMPS,foundWeapons} from './voyage-data.js';
 import {explorationPrompt,explore} from './exploration.js';
 import {MOTION,locomotion} from './motion.js';
@@ -29,7 +30,7 @@ export const ATTACKS={
 };
 const move=moveBody;
 function chase(e,p,speed,dt){const angle=Math.atan2(p.y-e.y,p.x-e.x);if(move(e,Math.cos(angle)*speed*dt,Math.sin(angle)*speed*dt,18)<speed*dt*.25){for(const side of [1,-1])if(move(e,Math.cos(angle+side*.95)*speed*dt,Math.sin(angle+side*.95)*speed*dt,18)>0)break;}}
-export function weaponAttack(p,key){const a=ATTACKS[key];if(!a)return null;const w=WEAPONS[p.weapon]||WEAPONS.axe;if(p.weapon==='gun')return {...a,name:key==='heavy'?'Overcharge':key==='finisher'?'Pulse breaker':'Pulse shot',damage:key==='heavy'?48:key==='finisher'?70:22,duration:key==='heavy'?.85:key==='finisher'?.9:.4,hit:.08,range:480,cost:key==='heavy'?22:key==='finisher'?28:10,arc:.16,lunge:0};const fin=key==='finisher'?({axe:{name:'Rift sweep',arc:Math.PI,range:155,damage:72},sword:{name:'Royal breaker',arc:1.8,range:165,damage:85},spear:{name:'Impaling storm',arc:.8,range:220,damage:90}}[p.weapon]||{}):{};return {...a,...fin,damage:Math.round((fin.damage||a.damage)*w.damage),duration:a.duration*w.speed,hit:a.hit*w.speed,range:(fin.range||a.range)*w.reach,cost:Math.ceil(a.cost*w.cost),arc:fin.arc??(p.weapon==='spear'?a.arc*.6:a.arc)};}
+export function weaponAttack(p,key){const a=ATTACKS[key];if(!a)return null;if(firearmFor(p.weapon))return firearmAttack(p.weapon,key);const w=WEAPONS[p.weapon]||WEAPONS.axe;if(p.weapon==='gun')return {...a,name:key==='heavy'?'Overcharge':key==='finisher'?'Pulse breaker':'Pulse shot',damage:key==='heavy'?48:key==='finisher'?70:22,duration:key==='heavy'?.85:key==='finisher'?.9:.4,hit:.08,range:480,cost:key==='heavy'?22:key==='finisher'?28:10,arc:.16,lunge:0};const fin=key==='finisher'?({axe:{name:'Rift sweep',arc:Math.PI,range:155,damage:72},sword:{name:'Royal breaker',arc:1.8,range:165,damage:85},spear:{name:'Impaling storm',arc:.8,range:220,damage:90}}[p.weapon]||{}):{};return {...a,...fin,damage:Math.round((fin.damage||a.damage)*w.damage),duration:a.duration*w.speed,hit:a.hit*w.speed,range:(fin.range||a.range)*w.reach,cost:Math.ceil(a.cost*w.cost),arc:fin.arc??(p.weapon==='spear'?a.arc*.6:a.arc)};}
 export function createRun(id,now=Date.now(),options={}){
  const stats=loadoutStats(options.gear,options.wins);
  const chapter=options.mode==='survival'?1:Math.min(3,Math.max(1,Math.floor(Number(options.wins)||0)+1));
@@ -46,8 +47,12 @@ export function createRun(id,now=Date.now(),options={}){
 function event(s,type,data={}){s.events.push({id:++s.eventId,type,...data});if(s.events.length>24)s.events.shift();}
 function effect(s,type,x,y,life=.45,extra={}){s.effects.push({type,x,y,life,maxLife:life,...extra});}
 function spend(p,n){if(p.stamina<n)return false;p.stamina-=n;p.staminaDelay=.48;return true;}
-function hitEnemy(s,e,damage,stagger=0,knock=0){if(e.hp<=0)return;damage=Math.round(damage*(s.player.powerup==='overdrive'&&s.player.powerTime>0?1.25:1));e.hp=Math.max(0,e.hp-damage);e.flash=.16;effect(s,'hit',e.x,e.y,.42,{amount:damage});effect(s,'blood',e.x,e.y,2.4);
- if(stagger){e.stagger=Math.max(e.stagger,e.type==='boss'?stagger*.28:stagger);if(e.type!=='boss')e.wind=0;}if(knock){const a=Math.atan2(e.y-s.player.y,e.x-s.player.x);move(e,Math.cos(a)*knock,Math.sin(a)*knock,18);}
+function hitEnemy(s,e,damage,stagger=0,knock=0){if(e.hp<=0)return;damage=Math.round(damage*(s.player.powerup==='overdrive'&&s.player.powerTime>0?1.25:1));e.hp=Math.max(0,e.hp-damage);e.flash=.16;
+ const angle=Math.atan2(e.y-s.player.y,e.x-s.player.x);
+ const heavy=s.player.action==='finisher'||s.player.action==='heavy';
+ e.impactAngle=angle;
+ effect(s,'hit',e.x,e.y,.42,{amount:damage,angle,heavy});effect(s,'blood',e.x,e.y,2.4);
+ if(stagger){e.stagger=Math.max(e.stagger,e.type==='boss'?stagger*.28:stagger);if(e.type!=='boss')e.wind=0;}if(knock)move(e,Math.cos(angle)*knock,Math.sin(angle)*knock,18);
  if(!e.hp){s.kills++;if(e.type!=='boss'&&s.kills%3===0){const key=['overdrive','aegis','surge'][(s.kills/3-1)%3];s.player.powerup=key;s.player.powerTime=POWERUPS[key].duration;event(s,'powerup',{key});}s.score+=e.type==='boss'?500:e.type==='brute'?90:60;s.salvage+=e.type==='boss'?80:12;e.death=1.4;effect(s,'death',e.x,e.y,.8);event(s,'kill',{enemy:e.type});if(e.type==='boss'){s.bossDead=true;event(s,'boss-defeated');}}
 }
 function hurt(s,damage,x,y,source){const p=s.player;if(p.invulnerable>0||s.status!=='active'||(s.mode!=='survival'&&safeArea(p))||s.inSafehouse)return;
@@ -63,22 +68,63 @@ export function setInput(s,b,now=Date.now()){
 }
 export function applyLoadout(s,options){const stats=loadoutStats(options.gear,options.wins),p=s.player;const oldMax=p.maxHp;Object.assign(p,stats);if(s.relic==='raven')p.maxHp-=40;p.hp=Math.min(p.maxHp,p.hp+Math.max(0,p.maxHp-oldMax));p.stamina=Math.min(p.maxStamina,p.stamina);p.potions=clamp(options.potions,0,3);}
 export function chooseRelic(s,key){if(s.status!=='active'||s.relic||!s.relicReady||!RELICS[key]||distance(s.player,s.shrine||SHRINE)>130)return false;s.relic=key;s.score+=100;if(key==='raven'){s.player.maxHp-=40;s.player.hp=Math.min(s.player.maxHp,s.player.hp);}else s.player.hp=Math.min(s.player.maxHp,s.player.hp+30);event(s,'relic',{key});return true;}
-function beginStrike(s,kind,deliberate){const p=s.player;if(p.dashing>0)return false;const follow=deliberate&&p.comboWindow>0;
- if(kind==='combo'&&(p.comboCharge||0)<COMBO_HITS)return false;
- const key=kind==='attack'&&p.weapon!=='gun'&&p.riposteWindow>0?'riposte':kind==='combo'?'finisher':kind==='heavy'?(follow&&p.combo===2?'finisher':'heavy'):follow&&p.combo===1?'light2':follow&&p.combo===2?'finisher':'light1';const a=weaponAttack(p,key);if(!spend(p,a.cost))return false;
+export function strikeChoice(p,kind,deliberate=true){
+ if(!['attack','heavy','combo'].includes(kind))return null;
+ const firearm=firearmFor(p.weapon);
+ if(kind==='combo')return !firearm&&(p.comboCharge||0)>=COMBO_HITS?'finisher':null;
+ if(firearm)return kind==='heavy'?'heavy':'light1';
+ if(kind==='attack'&&p.weapon!=='gun'&&p.riposteWindow>0)return 'riposte';
+ const follow=deliberate&&p.comboWindow>0;
+ if(follow&&p.combo===2)return 'finisher';
+ if(kind==='heavy')return 'heavy';
+ return follow&&p.combo===1?'light2':'light1';
+}
+function beginStrike(s,kind,deliberate){
+ const p=s.player;
+ if(p.dashing>0)return false;
+ const key=strikeChoice(p,kind,deliberate),a=weaponAttack(p,key);
+ if(!a||!spend(p,a.cost))return false;
+ const firearm=firearmFor(p.weapon);
  if(key==='riposte')p.riposteWindow=0;
  if(key==='finisher')p.comboCharge=0;
- p.action=key;p.actionTime=0;p.actionDuration=a.duration;p.actionId++;p.hitDone=false;p.attack=a.duration;p.slash=0;p.combo=key==='light1'?1:key==='light2'?2:key==='finisher'?3:0;p.comboWindow=0;p.guard=false;event(s,'swing',{attack:key});return true;
+ p.action=key;p.actionTime=0;p.actionDuration=a.duration;p.actionId++;p.hitDone=false;p.attack=a.duration;p.slash=0;p.combo=firearm?0:key==='light1'?1:key==='light2'?2:key==='finisher'?3:0;p.comboWindow=0;p.guard=false;event(s,'swing',{attack:key});return true;
 }
 function resolveStrike(s){const p=s.player,a=weaponAttack(p,p.action);if(!a)return;
- if(p.weapon==='gun'){
-  let reach=a.range;for(let d=18;d<reach;d+=8){if(!walkable(p.x+Math.cos(p.angle)*d,p.y+Math.sin(p.angle)*d,2)){reach=d;break;}}
-  const target=[...s.enemies,...(s.boss.awake?[s.boss]:[])].filter(e=>e.hp>0&&distance(p,e)<reach&&Math.abs(angleDifference(Math.atan2(e.y-p.y,e.x-p.x),p.angle))<a.arc).sort((x,y)=>distance(p,x)-distance(p,y))[0];
-  if(target){hitEnemy(s,target,a.damage+p.damageBonus,a.stagger,4);event(s,'strike',{attack:p.action});if(p.action!=='finisher'){p.comboCharge=Math.min(COMBO_HITS,(p.comboCharge||0)+1);if(p.comboCharge===COMBO_HITS)event(s,'combo-ready');}}
-  effect(s,'pulse',p.x,p.y,.16,{tx:target?.x??p.x+Math.cos(p.angle)*reach,ty:target?.y??p.y+Math.sin(p.angle)*reach});return;
+ const firearm=firearmFor(p.weapon);
+ if(firearm){
+  const living=[...s.enemies,...(s.boss.awake?[s.boss]:[])].filter(e=>e.hp>0);
+  const offsets=firearm.spread?[-firearm.spread,0,firearm.spread]:[0];
+  let confirmed=false;
+  for(const offset of offsets){
+   const angle=p.angle+offset,dx=Math.cos(angle),dy=Math.sin(angle);
+   let reach=a.range;
+   for(let d=18;d<reach;d+=8){
+    if(!walkable(p.x+dx*d,p.y+dy*d,2)){reach=d;break;}
+   }
+   let target;
+   for(const e of living){
+    if(e.hp<=0)continue;
+    const x=e.x-p.x,y=e.y-p.y,depth=x*dx+y*dy;
+    if(depth<0||depth>=reach||Math.abs(x*dy-y*dx)>21||!clearEnemyRoute(p,e,2))continue;
+    target=e;reach=depth;
+   }
+   if(target){hitEnemy(s,target,a.damage+p.damageBonus,a.stagger,4);confirmed=true;}
+   effect(s,'pulse',p.x,p.y,.16,{tx:p.x+dx*reach,ty:p.y+dy*reach,colour:firearm.colour,actionId:p.actionId});
+  }
+  event(s,'pulse-fired',{weapon:p.weapon,hit:confirmed});
+  return;
  }
-move(p,Math.cos(p.angle)*a.lunge,Math.sin(p.angle)*a.lunge);p.slash=.18;const living=[...s.enemies,...(s.boss.awake?[s.boss]:[])].filter(e=>e.hp>0);let first;
- for(const e of living){if(distance(p,e)<a.range+(e.type==='boss'?30:0)&&Math.abs(angleDifference(Math.atan2(e.y-p.y,e.x-p.x),p.angle))<a.arc){hitEnemy(s,e,a.damage+p.damageBonus-(s.relic==='storm'?5:0),a.stagger,p.action==='finisher'?36:7);first??=e;}}
+ const beforeX=p.x,beforeY=p.y;
+ move(p,Math.cos(p.angle)*a.lunge,Math.sin(p.angle)*a.lunge);
+ p.strikeStep={id:p.actionId,dx:p.x-beforeX,dy:p.y-beforeY};
+ p.slash=.18;
+ const living=[...s.enemies,...(s.boss.awake?[s.boss]:[])].filter(e=>e.hp>0);let first;
+ for(const e of living){
+  const withinReach=distance(p,e)<a.range+(e.type==='boss'?30:0);
+  const inArc=Math.abs(angleDifference(Math.atan2(e.y-p.y,e.x-p.x),p.angle))<a.arc;
+  if(!withinReach||!inArc||!clearEnemyRoute(p,e,2))continue;
+  hitEnemy(s,e,a.damage+p.damageBonus-(s.relic==='storm'?5:0),a.stagger,p.action==='finisher'?36:7);first??=e;
+ }
  if(first)event(s,'strike',{attack:p.action});
  if(first&&p.action!=='finisher'){p.comboCharge=Math.min(COMBO_HITS,(p.comboCharge||0)+1);if(p.comboCharge===COMBO_HITS)event(s,'combo-ready');}
  if(first&&s.relic==='storm'){const other=living.find(e=>e!==first&&e.hp>0&&distance(e,first)<185);if(other){hitEnemy(s,other,18);effect(s,'arc',first.x,first.y,.3,{tx:other.x,ty:other.y});}}
@@ -127,10 +173,23 @@ export function tick(s,dt,now=Date.now()){
  for(const e of s.enemies){if(e.hp<=0||e.stagger>0)continue;e.cd-=dt;
   if(e.arrival>0){e.arrival=Math.max(0,e.arrival-dt);continue;}const oldX=e.x,oldY=e.y;
   if(s.mode!=='survival'&&safeArea(p)){e.wind=0;if(Math.hypot(e.homeX-e.x,e.homeY-e.y)>8)chase(e,{x:e.homeX,y:e.homeY},95,dt);continue;}
-  const d=distance(p,e);
-  if(e.wind>0){e.wind-=dt;if(e.wind<=0){e.swing=.3;if(e.type==='archer'){if(!survival||clearEnemyRoute(e,p,8))s.shots.push({x:e.x,y:e.y,vx:Math.cos(e.angle)*335,vy:Math.sin(e.angle)*335,life:2.6});}else {if(e.type==='raider')move(e,Math.cos(e.angle)*24,Math.sin(e.angle)*24,18);if(distance(p,e)<(e.type==='brute'?120:78)&&(!survival||clearEnemyRoute(e,p,8)))hurt(s,e.type==='brute'?24:12,e.x,e.y,e);}e.cd=e.type==='brute'?1.8:e.type==='archer'?1.4:1.05;}}
+  const d=distance(p,e),bot=survival?SURVIVAL_BOTS[e.variant]:null;
+  if(e.wind>0){
+   e.wind-=dt;
+   if(e.wind<=0){
+    e.swing=.3;
+    if(e.type==='archer'){
+     if(!survival||clearEnemyRoute(e,p,8))s.shots.push({x:e.x,y:e.y,vx:Math.cos(e.angle)*335,vy:Math.sin(e.angle)*335,life:2.6});
+    }else{
+     if(e.type==='raider'&&!bot)move(e,Math.cos(e.angle)*24,Math.sin(e.angle)*24,18);
+     const inFront=!bot||Math.abs(angleDifference(Math.atan2(p.y-e.y,p.x-e.x),e.angle))<.72;
+     if(inFront&&distance(p,e)<(bot?.hitRange??(e.type==='brute'?120:78))&&(!survival||clearEnemyRoute(e,p,8)))hurt(s,bot?.damage??(e.type==='brute'?24:12),e.x,e.y,e);
+    }
+    e.cd=bot?.cooldown??(e.type==='brute'?1.8:e.type==='archer'?1.4:1.05);
+   }
+  }
   else if(survival){
-   const reach=e.type==='archer'?290:e.type==='brute'?92:61;
+   const reach=bot?.reach??(e.type==='archer'?290:e.type==='brute'?92:61);
    const bearing=Math.atan2(p.y-e.y,p.x-e.x);
    const direct=d<470&&clearEnemyRoute(e,p);
    const attackLane=d<=reach&&(direct||clearEnemyRoute(e,p,8));
@@ -138,10 +197,10 @@ export function tick(s,dt,now=Date.now()){
     e.stalled=0;e.pursuitProbe=null;
     e.angle+=clamp(angleDifference(bearing,e.angle),-dt*9,dt*9);
     if(e.cd<=0&&Math.abs(angleDifference(bearing,e.angle))<.28){
-     e.wind=e.type==='brute'?.85:e.type==='archer'?.62:.48;
+     e.wind=bot?.wind??(e.type==='brute'?.85:e.type==='archer'?.62:.48);
     }
    }else if(d<=1050){
-    const moved=pursueEnemy(e,p,e.type==='brute'?85:130,dt,direct);
+    const moved=pursueEnemy(e,p,bot?.speed??(e.type==='brute'?85:130),dt,direct);
     if(moved>.12){
      const heading=Math.atan2(e.y-oldY,e.x-oldX);
      e.angle+=clamp(angleDifference(heading,e.angle),-dt*9,dt*9);

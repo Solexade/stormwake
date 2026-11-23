@@ -45,7 +45,7 @@ npm ci
 npm test
 npm run build
 npm start
-# Optional full isolated HTTP expedition:
+# Isolated HTTP Survival playthrough:
 npm run test:playthrough
 ```
 

@@ -7,6 +7,14 @@ export const HEROES=Object.freeze([
  {id:'grove',name:'Grove Sentinel',asset:'hooded_blade.glb',color:'#91bd84',tag:'Champion reward',description:'Forest finish earned at 1000 voyage XP.',unlock:1000},
  {id:'hood',name:'Violet Wraith',asset:'hooded_blade.glb',color:'#ffffff',tag:'Violet / shadow',description:'Hooded rival. Shared playable model across every mode.'}
 ]);
+export const SOLO_HEROES=Object.freeze([
+ ...HEROES,
+ {id:'saltguard',name:'Saltguard',asset:'saltguard_paladin.glb'},
+ {id:'pathfinder',name:'Silver Pathfinder',asset:'silver_pathfinder.glb'}
+]);
+export const soloHeroById=id=>SOLO_HEROES.find(h=>h.id===id)||HEROES[0];
+export function storedSoloHero(){try{return soloHeroById(localStorage.getItem('stormwake.soloHero')||storedHero()).id;}catch{return HEROES[0].id;}}
+export function chooseSoloHero(id){const hero=soloHeroById(id);try{localStorage.setItem('stormwake.soloHero',hero.id);}catch{}return hero;}
 export const heroById=id=>HEROES.find(h=>h.id===id)||HEROES[0];
 export function storedHero(){try{return heroById(localStorage.getItem('stormwake.hero')).id;}catch{return HEROES[0].id;}}
 export function chooseHero(id){const hero=heroById(id);try{localStorage.setItem('stormwake.hero',hero.id);}catch{}return hero;}
@@ -22,7 +30,11 @@ export function heroMaterial(source,id){const m=source.clone();if(id==='frost')m
 
 // Match animation names to the underlying rig, including cosmetic variants.
 export function soloAnimationAliases(id){
- const steel=heroById(id).asset==='azure_champion.glb';
+ if(id==='saltguard'||id==='pathfinder'||id==='sentinel'){
+  const strike=id==='saltguard'?'sword_regular_a':id==='sentinel'?'sword_attack':'idle';
+  return {Idle:'idle',Idle_swordRight:'idle',Idle_swordLeft:'sword_idle',Walking:'walk_loop',Jog:'jog_fwd_loop',Run:'sprint_loop',Run_swordAttack:strike,ComboFollowup:id==='saltguard'?'sword_regular_b':strike,HeavyStrike:id==='saltguard'?'sword_regular_c':strike,FinisherStrike:strike,swordAttackJump:strike,Roll_sword:'jump_loop',Death:'death',HitReaction:'hit_chest'};
+ }
+ const steel=soloHeroById(id).asset==='azure_champion.glb';
  return steel?{Idle:'sword_idle',Idle_swordRight:'sword_idle',Idle_swordLeft:'sword_idle',Walking:'walk_loop',Jog:'jog_fwd_loop',Run:'sprint_loop',Run_swordAttack:'sword_regular_a',ComboFollowup:'sword_regular_b',HeavyStrike:'sword_regular_c',FinisherStrike:'sword_regular_c',swordAttackJump:'sword_regular_b',Roll_sword:'roll',Death:'death',HitReaction:'hit_chest'}:
  {Idle:'idle',Idle_swordRight:'idle',Idle_swordLeft:'idle',Walking:'walk_loop',Jog:'jog_fwd_loop',Run:'sprint_loop',Run_swordAttack:'punch_jab',ComboFollowup:'kick',HeavyStrike:'kick',FinisherStrike:'kick',swordAttackJump:'kick',Roll_sword:'jog_fwd_loop',Death:'idle',HitReaction:'idle'};
 }

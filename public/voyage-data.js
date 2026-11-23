@@ -1,3 +1,4 @@
+import {firearmFor} from './arsenal.js';
 // Shared authoritative locations. All distances are simulation units.
 export const REGIONS=[
  {id:1,name:'The Sunken Coast',home:{x:465,y:1410},shrine:{x:1135,y:815},boss:{x:1910,y:560},bossName:'The Prime Directive'},
@@ -40,8 +41,8 @@ export const CACHES=[
  {id:'reach-vault',x:4830,y:700,kind:'weapon'}
 ];
 export const regionFor=chapter=>REGIONS[Math.max(0,Math.min(2,(chapter||1)-1))];
-export const regionName=p=>p.x>3950?'THE EMERALD REACH':p.x>2600?'RIVERHOLD':p.x>1100&&p.y>1300?'OLD CITY':p.y>1750?'SOUTHWATCH COAST':null;
-export function foundWeapons(gear={}) {return [...new Set(['axe',...(gear.foundWeapons||[]),gear.weapon].filter(k=>['axe','sword','spear'].includes(k)))];}
+export const regionName=p=>p.x>=5540&&p.y<1800?'PINEWATCH BLUFF':p.x>=5570&&p.y>=1800?'GLASSWATER BASIN':p.x>3950?'THE EMERALD REACH':p.x>2600?'RIVERHOLD':p.x>1100&&p.y>1300?'OLD CITY':p.y>1750?'SOUTHWATCH COAST':null;
+export function foundWeapons(gear={}) {return [...new Set(['axe',...(gear.foundWeapons||[]),gear.weapon].filter(k=>['axe','sword','spear'].includes(k)||firearmFor(k)))];}
 export function voyageRank(gear={}){const a=gear.adventure||{},xp=(a.kills||0)*10+(a.bosses||0)*150;return {xp,name:xp>=1000?'Isles Champion':xp>=450?'Pathfinder':xp>=150?'Wayfarer':'Castaway',skins:xp>=1000?['tide','grove']:xp>=450?['tide']:[]};}
 export function bankVoyage(gear,s){const a=gear.adventure||{};return {...gear,foundWeapons:[...new Set([...foundWeapons(gear),...(s.inventory||[])])],adventure:{kills:(a.kills||0)+(s.kills||0),bosses:(a.bosses||0)+(s.bossDead?1:0)}};}
 
@@ -85,3 +86,46 @@ for(const [i,x,y,kind] of [[0,1400,1750,'weapon'],[1,1850,1760,'health'],[2,2250
  ];
 
 export const WORLD_TRAILS=[...DISTRICT_TRAILS,[[500,1600],[750,1780],[750,2050],[920,2070]],[[2900,1800],[3035,1600],[3035,1350],[3370,1250],[3550,900],[3660,640]],[[4230,1800],[4440,1500],[4440,1320],[4610,1260],[4700,650]],[[465,1410],[655,1360],[750,1180],[930,1100],[1135,815],[1420,820],[1650,795],[1840,680],[1910,560]],[[930,850],[780,810],[660,710]]];
+
+ // These are surveyed supply sites in the existing survival districts.
+ CACHES.push(
+  {id:'harbour-armory',x:517,y:1454,kind:'armory',weapon:'pulse-carbine'},
+  {id:'city-siege-cache',x:2070,y:1770,kind:'armory',weapon:'rift-scattergun'},
+  {id:'river-armory',x:3150,y:2220,kind:'armory',weapon:'pulse-carbine'},
+  {id:'reach-siege-cache',x:5150,y:1970,kind:'armory',weapon:'rift-scattergun'}
+ );
+
+// Windward bluffs and two banks of a real estuary. Polygons overlap the old
+// eastern headlands so the approaches work on foot and for the pursuit grid.
+EXTRA_LAND.push(
+ [[5330,620],[5600,440],[5940,305],[6430,320],[6830,560],[7030,890],[6830,1230],[6440,1360],[6080,1260],[5710,1400],[5410,1190]],
+ [[5970,1310],[6220,1250],[6410,1450],[6380,1680],[6280,1880],[6020,1940],[5900,1710]],
+ [[5520,2110],[5800,1840],[6150,1790],[6460,1930],[6650,2260],[6460,2510],[6490,2830],[6240,3180],[5890,3280],[5560,3070],[5410,2710]],
+ [[6860,1800],[7210,1900],[7520,2150],[7750,2590],[7610,3100],[7290,3510],[6850,3540],[6570,3300],[6750,2930],[6820,2500],[6870,2220]]
+);
+EXTRA_BRIDGES.push({x:6070,y:1215,w:160,h:250},{x:6360,y:2420,w:620,h:150});
+WORLD_TRAILS.push(
+ [[5310,675],[5530,850],[5680,930],[5920,800],[5920,690],[5920,550],[6240,490],[6470,610],[6480,900],[6200,1100],[5920,800]],
+ [[6200,1100],[6150,1320],[6140,1620],[6130,1880],[6090,2260],[6100,2430]],
+ [[5540,2260],[5770,2250],[6090,2260],[6100,2430],[6300,2495],[6730,2495],[7120,2495]],
+ [[6100,2430],[6030,2650],[5950,2970],[6190,3070],[6320,2760],[6300,2495]],
+ [[7120,2495],[7320,2600],[7370,2940],[7190,3210],[6900,3260],[6950,2790],[7120,2495]]
+);
+HOMES.push(
+ {x:5770,y:1140,w:116,h:92,angle:.19},{x:6380,y:770,w:104,h:98,angle:-.23},
+ {x:5940,y:2070,w:130,h:112,angle:.18},{x:6300,y:2240,w:118,h:94,angle:-.13},
+ {x:7280,y:2390,w:120,h:94,angle:.28},{x:7100,y:3120,w:112,h:96,angle:.12}
+);
+export const EASTERN_LANDMARKS={
+ gate:{x:5920,y:690,pillarOffset:57},
+ beacon:{x:7450,y:2730}
+};
+CACHES.push(
+ {id:'pinewatch-weapons',x:5958,y:800,kind:'weapon'},
+ {id:'pinewatch-tonic',x:6200,y:560,kind:'health'},
+ {id:'pinewatch-core',x:6460,y:930,kind:'core'},
+ {id:'glasswater-arms',x:6140,y:2450,kind:'weapon'},
+ {id:'glasswater-tonic',x:6010,y:2870,kind:'health'},
+ {id:'glasswater-armory',x:7070,y:2525,kind:'armory',weapon:'rift-scattergun'},
+ {id:'glasswater-core',x:7220,y:3200,kind:'core'}
+);
