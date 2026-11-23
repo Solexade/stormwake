@@ -9,6 +9,17 @@ test('weapons have server-controlled speed, reach, stamina and damage tradeoffs'
  const s=createRun('weapon-test',Date.now(),{gear:{weapon:'spear',axe:2}});assert.equal(s.player.weapon,'spear');assert.equal(s.player.damageBonus,8);
 });
 import {tick,setInput} from '../public/combat.js';
+test('server rejects a melee hit that would pass through a house corner',()=>{
+ const s=createRun('blocked-melee',1000,{mode:'survival'});
+ Object.assign(s.player,{weapon:'axe',x:570,y:1340,angle:Math.atan2(125,45)});
+ const foe={id:1,type:'raider',x:615,y:1465,hp:80,maxHp:80,arrival:3,cd:5,wind:0,swing:0,flash:0,stagger:0,death:0};
+ s.enemies=[foe];
+ setInput(s,{heavy:true,angle:s.player.angle},1000);
+ for(let i=0;i<14;i++)tick(s,.03,1000+i*30);
+ assert.equal(s.player.hitDone,true);
+ assert.equal(foe.hp,80);
+ assert.ok(!s.events.some(e=>e.type==='strike'));
+});
 test('movement accelerates promptly, sprints faster and stops on stale input',()=>{
  const pace=sprint=>{const s=createRun('pace',0);for(let n=1;n<=10;n++){setInput(s,{dx:1,dy:0,sprint},n*20);tick(s,.02,n*20);}return s;};
  const jog=pace(false),sprint=pace(true);
@@ -20,6 +31,21 @@ test('movement accelerates promptly, sprints faster and stops on stale input',()
 
 test('pausing freezes combat and time without turning the wilderness into a safehouse',()=>{const s=createRun('pause',0);s.paused=true;s.input={dx:1,attack:true};const x=s.player.x;tick(s,.03,30);assert.equal(s.player.x,x);assert.equal(s.elapsed,0);assert.equal(s.inSafehouse,false);s.paused=false;setInput(s,{dx:1},40);tick(s,.03,40);assert.ok(s.player.x>x);});
 import {MovementPreview} from '../public/movement-preview.js';
+test('local rendering consumes a confirmed strike step once without a trailing slide',()=>{
+ const s=createRun('strike-step',0,{mode:'survival'});
+ s.player.weapon='axe';s.player.angle=0;
+ const view=new MovementPreview();view.sync(s,0);
+ const x=s.player.x;
+ setInput(s,{attack:true,angle:0},0);
+ for(let i=0;i<9;i++)tick(s,.03,i*30);
+ assert.ok(s.player.strikeStep.dx>0);
+ view.sync(s,270);
+ const after=view.step({},.02,290);
+ assert.equal(after.x,s.player.x);
+ assert.ok(after.x>x);
+ view.sync(s,310);
+ assert.equal(view.step({},.02,330).x,after.x);
+});
 test('local movement responds before a server reply, normalizes diagonals and stops on connection loss',()=>{
  const run=createRun('preview',0),original=JSON.stringify(run);const direct=new MovementPreview(),diagonal=new MovementPreview();direct.sync(run,0);diagonal.sync(run,0);
  const a=direct.step({dx:1,dy:0,angle:0},1/60,16),b=diagonal.step({dx:1,dy:1,angle:.78},1/60,16);

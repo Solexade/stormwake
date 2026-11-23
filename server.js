@@ -85,7 +85,7 @@ const server=http.createServer(async(req,res)=>{
         if(!Object.hasOwn(WEAPONS,b.weapon))return json(res,400,{error:'Choose an available weapon.'});
         const s=runs.get(p.id);if(s?.status==='active'&&s.player.action!=='idle')return json(res,400,{error:'Finish your current move before switching weapons.'});
         const gear=JSON.parse(fresh(p.id).gear||'{}');const available=s?.status==='active'?(s.inventory||foundWeapons(gear)):foundWeapons(gear);if(!available.includes(b.weapon))return json(res,400,{error:'Discover this weapon in a cache first.'});gear.weapon=b.weapon;gear.foundWeapons=available;db.prepare('UPDATE players SET gear=? WHERE id=?').run(JSON.stringify(gear),p.id);
-        if(s?.status==='active'){s.player.weapon=b.weapon;s.player.combo=0;s.player.comboWindow=0;s.buffer=null;}
+        if(s?.status==='active'){s.player.weapon=b.weapon;s.player.combo=0;s.player.comboWindow=0;s.player.comboCharge=0;s.buffer=null;}
         return json(res,200,state(fresh(p.id)));
       }
       if(req.method==='POST'&&url.pathname==='/api/shop/buy'){
@@ -138,8 +138,8 @@ const server=http.createServer(async(req,res)=>{
     const files={'/':'solo.html','/solo':'solo.html','/index.html':'index.html','/style.css':'style.css','/app.js':'app.js','/game.js':'game.js','/world.js':'world.js','/combat.js':'combat.js','/catalog.js':'catalog.js','/scene3d.js':'scene3d.js','/icon.svg':'icon.svg','/vendor/three.module.js':'vendor/three.module.js','/vendor/three.core.min.js':'vendor/three.core.min.js','/vendor/THREE-LICENSE.txt':'vendor/THREE-LICENSE.txt'};
     files['/vendor/BufferGeometryUtils.js']='vendor/BufferGeometryUtils.js';files['/adventure.js']='adventure.js';files['/movement-preview.js']='movement-preview.js';
     files['/motion.js']='motion.js';files['/realism.js']='realism.js';files['/vendor/HDRLoader.js']='vendor/HDRLoader.js';
-    for(const file of ['pursuit.js','arenas.js','arena-picker.js','survival.js','voyage-data.js','exploration.js','bright-lobby.css','mobile-controls.js','mobile-polish.css','sample-mixer.js','audio-manifest.js','audio-controls.js','audio-controls.css','audio-credits.html','cinematic.js','combat-presentation.js','audio.js','characters.js','heroes.js','hero-choice.js','storm-theme.css','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
-    for(const name of ['coastal-water','voyage','actors','environment','lighting','harbour','quality','palette','assets','asset-cache','sunken-isles','harbour-terrain','harbour-refurbish'])files['/scene/'+name+'.js']='scene/'+name+'.js';
+    for(const file of ['arsenal.js','pursuit.js','arenas.js','arena-picker.js','survival.js','voyage-data.js','exploration.js','bright-lobby.css','mobile-controls.js','mobile-polish.css','sample-mixer.js','audio-manifest.js','audio-controls.js','audio-controls.css','audio-credits.html','cinematic.js','combat-presentation.js','audio.js','characters.js','heroes.js','hero-choice.js','storm-theme.css','vendor/GLTFLoader.js','vendor/SkeletonUtils.js'])files['/'+file]=file;
+    for(const name of ['coastal-water','voyage','actors','environment','lighting','harbour','quality','palette','assets','asset-cache','sunken-isles','harbour-terrain','harbour-refurbish','held-effects'])files['/scene/'+name+'.js']='scene/'+name+'.js';
     files['/asset-manifest.js']='asset-manifest.js';
     for(const name of ['config','state','input','movement','hitboxes','combat','rounds','ai','engine','client','view','fighters','environment','catalog','preview','audio'])files['/arcade/'+name+'.js']='arcade/'+name+'.js';
     files['/arcade']='arcade.html';files['/arcade.html']='arcade.html';files['/arcade/style.css']='arcade/style.css';files['/arcade/landing.css']='arcade/landing.css';

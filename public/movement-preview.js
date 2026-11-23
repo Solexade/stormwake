@@ -1,22 +1,33 @@
 import {MOTION,locomotion} from './motion.js';
-import {walkable,moveBody} from './world.js';
+import {moveBody} from './world.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export class MovementPreview {
  constructor(){this.reset();}
- reset(){this.player=null;this.source=null;this.received=0;this.history=[];this.correction={x:0,y:0};}
+ reset(){this.player=null;this.source=null;this.received=0;this.history=[];this.correction={x:0,y:0};this.lastStrikeStep=undefined;}
  sync(run,now,sentAt=now){
   const p=run?.player;if(!p)return;
   const previous=this.player,same=this.id===run.id;
+  const strike=p.strikeStep;
+  const newStep=same&&strike&&strike.id!==this.lastStrikeStep;
+  this.lastStrikeStep=strike?.id;
   this.source=run;this.received=now;this.id=run.id;
   this.player={...p};
   if(previous&&same&&run.status==='active'&&!run.paused&&!run.inSafehouse&&!run.travel){
    // Compare the response with the display at request time, not with today's
    // position. Otherwise ordinary network latency continually brakes movement.
    const past=this.history.reduce((best,h)=>Math.abs(h.time-sentAt)<Math.abs(best.time-sentAt)?h:best,{time:now,x:previous.x,y:previous.y});
-   const ex=p.x-past.x,ey=p.y-past.y,error=Math.hypot(ex,ey);
+   let ex=p.x-past.x,ey=p.y-past.y;
+   const error=Math.hypot(ex,ey);
    if(error<250){
     Object.assign(this.player,{x:previous.x,y:previous.y,vx:previous.vx,vy:previous.vy,angle:previous.angle});
-    this.correction=error>12?{x:ex,y:ey}:{x:0,y:0};
+    if(newStep){
+     // A swing's accepted displacement is already collision-checked by the
+     // server. Apply it once here instead of chasing it as delayed walking.
+     const x=this.player.x,y=this.player.y;
+     moveBody(this.player,strike.dx,strike.dy);
+     ex-=this.player.x-x;ey-=this.player.y-y;
+    }
+    this.correction=Math.hypot(ex,ey)>12?{x:ex,y:ey}:{x:0,y:0};
    }else{this.history=[];this.correction={x:0,y:0};}
   }else{this.history=[];this.correction={x:0,y:0};}
  }

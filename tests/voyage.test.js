@@ -37,3 +37,16 @@ test('expanded district trails connect to new play space on foot',()=>{
   assert.ok(reachable(REGIONS[0].home,target),JSON.stringify(target));
  }
 });
+
+test('rare armory caches award each weapon once on the authoritative survival run',()=>{
+ const s=createRun('arsenal',1000,{mode:'survival'});const c=CACHES.find(p=>p.id==='harbour-armory');
+ s.openedCaches.push('starter');
+ Object.assign(s.player,{x:c.x,y:c.y});
+ const prompt=explorationPrompt(s);
+ assert.equal(prompt.id,c.id);assert.equal(prompt.label,'Open rare armory cache');assert.equal(explore(s,prompt,emit),true);
+ assert.equal(s.player.weapon,'pulse-carbine');assert.ok(s.inventory.includes('pulse-carbine'));
+ assert.equal(explore(s,prompt,emit),false);
+ assert.deepEqual(foundWeapons({foundWeapons:s.inventory}),['axe','pulse-carbine']);
+ const legacy=createRun('legacy',1000);Object.assign(legacy.player,{x:c.x,y:c.y});
+ assert.equal(explore(legacy,prompt,emit),false);
+});

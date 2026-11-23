@@ -130,14 +130,14 @@ export function createCoastalWater(coastMap){
     float shoal=1.-smoothstep(.18,4.8,shore);
     float caustic=pow(1.-abs(sin(dot(q,vec2(3.8,-5.2))+sin(q.y*2.+time*.5))),10.);
     caustic*=.45+.55*sin(dot(q,vec2(4.2,3.3))-time*.6)*sin(dot(q,vec2(4.2,3.3))-time*.6);
-    vec3 sea=mix(vec3(.018,.085,.126),vec3(.087,.25,.205),shoal);
+    vec3 sea=mix(vec3(.018,.085,.126),vec3(.081,.21,.16),shoal);
     sea+=caustic*shoal*fade*detail*vec3(.045,.062,.049);
     vec3 colour=mix(sea,sky,fresnel);
-    float runup=.29+.19*sin(time*1.65+q.x*.62-q.y*.53);
+    float runup=.36+.22*sin(time*1.5+q.x*.62-q.y*.53)+.075*sin(dot(ripple,vec2(7.3,-5.1))-time*.8);
     float broken=smoothstep(-.25,.66,sin(q.x*7.+q.y*5.+time*.7)*sin(q.x*4.-q.y*8.));
     float edge=(1.-smoothstep(.04,.24,abs(shore-runup)))*(.34+.66*broken);
     float backwash=(1.-smoothstep(.06,.34,abs(shore-runup-.51)))*broken*.28;
-    colour=mix(colour,vec3(.67,.77,.71),clamp((edge+backwash)*.69,0.,.65));
+    colour=mix(colour,vec3(.69,.76,.67),clamp((edge+backwash)*.74,0.,.72));
     vec3 light=normalize(vec3(-.44,.73,.49));
     float specular=pow(max(dot(n,normalize(v+light)),0.),88.);
     colour+=specular*vec3(.47,.42,.30);

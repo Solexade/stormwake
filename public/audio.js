@@ -1,3 +1,4 @@
+import {firearmFor} from './arsenal.js';
 import {SampleMixer} from './sample-mixer.js';
 export class AdventureAudio {
  constructor(host=globalThis){this.mixer=new SampleMixer(host);this.foot=0;this.winds=new Map();this.nextThunder=25;this.weapon='axe';}
@@ -6,12 +7,13 @@ export class AdventureAudio {
  get ctx(){return this.mixer.ctx;}
  async enable(){return this.mixer.enable();}
  effect(kind,event={}){const m=this.mixer,w=this.weapon,heavy=event.attack==='heavy'||event.attack==='finisher';
-  if(kind==='swing'||kind==='dodge')m.play(w==='spear'?'swing2':'swing1',{rate:w==='sword'?1.13:w==='axe'?.83:1,volume:.45});
-  if(['strike','hurt','finisher'].includes(kind)){m.play(w==='axe'?'chop':w==='spear'?'hit2':'hit1',{volume:heavy?.85:.58,rate:heavy?.78:1});m.play('bass',{volume:heavy?.48:.22,rate:.8});m.duck();}
+  if((kind==='swing'&&!firearmFor(w))||kind==='dodge')m.play(w==='spear'?'swing2':'swing1',{rate:w==='sword'?1.13:w==='axe'?.83:1,volume:.45});
+  if(kind==='strike'||kind==='hurt'){m.play(kind==='hurt'?'hit2':w==='axe'?'chop':w==='spear'?'hit2':'hit1',{volume:heavy?.85:.58,rate:heavy?.78:1});m.play('bass',{volume:heavy?.48:.22,rate:.8});m.duck();}
   if(kind==='block'||kind==='parry'){m.play('metal',{volume:.7,rate:kind==='parry'?1.15:.9});m.duck();}
   if(['chest','relic','boss-defeated','upgrade','combo-ready'].includes(kind))m.play('reward',{volume:.7});
   if(kind==='kill')m.play('defeat',{rate:event.enemy==='boss'?.75:1,volume:.45});
   if(['boss-awake','boss-slam'].includes(kind)){m.play('warning',{volume:.7,rate:.85});m.duck();}
+  if(kind==='pulse-fired'){m.play('thunder',{volume:.34,rate:event.weapon==='rift-scattergun'?1.7:2.1});m.play('bass',{volume:.42,rate:1.55});m.duck();}
   if(kind==='storm')m.play('thunder',{volume:.65});
  }
  update(p,active,boss,hidden,run){const m=this.mixer;this.weapon=p?.weapon||'axe';const threats=(run?.enemies||[]).concat(run?.boss?.awake?[run.boss]:[]);const nearby=threats.some(e=>e.hp>0&&p&&Math.hypot(e.x-p.x,e.y-p.y)<360);m.setScene(boss||nearby?'combat':'explore',active&&!hidden);

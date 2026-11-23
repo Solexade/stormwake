@@ -1,39 +1,109 @@
-// End-to-end playtest: only public HTTP input, isolated database, no fake live scores.
+// Drive the real Solo Survival API using an isolated SQLite database.
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {walkable,HOME,SHRINE,BOSS} from '../public/game.js';
+import {setTimeout as delay} from 'node:timers/promises';
+
 const root=fileURLToPath(new URL('../',import.meta.url));
 const dir=await mkdtemp(path.join(tmpdir(),'isles-playtest-'));
+const base='http://127.0.0.1:5195';
 let child;
-async function boot(){child=spawn(process.execPath,['server.js'],{cwd:root,env:{...process.env,PORT:'5195',DATA_DIR:dir},stdio:['ignore','pipe','pipe']});await new Promise((resolve,reject)=>{child.stdout.once('data',resolve);child.once('error',reject);child.once('exit',code=>reject(Error('Server exited '+code)));});}
-async function stop(){if(!child||child.exitCode!==null)return;await new Promise(resolve=>{child.once('exit',resolve);child.kill();});}
-const base='http://127.0.0.1:5195';let cookie;let command=0;
-async function api(endpoint,data){const r=await fetch(base+'/api/'+endpoint,{method:data===undefined?'GET':'POST',headers:{Cookie:cookie||'','Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});if(!cookie)cookie=r.headers.get('set-cookie')?.split(';')[0];const value=await r.json();if(!r.ok)throw Error(value.error);return value;}
-const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-function route(p,target){const grid=25,start=[Math.round(p.x/grid),Math.round(p.y/grid)],goal=[Math.round(target.x/grid),Math.round(target.y/grid)],q=[start],seen=new Set([start.join(',')]),parent=new Map();let found;for(let i=0;i<q.length;i++){const [x,y]=q[i];if(Math.hypot(x-goal[0],y-goal[1])<1.5){found=[x,y];break;}for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[-1,1],[1,-1]]){const a=x+dx,b=y+dy,k=`${a},${b}`;if(!seen.has(k)&&walkable(a*grid,b*grid,20)&&walkable((x+a)*grid/2,(y+b)*grid/2,20)){seen.add(k);parent.set(k,[x,y]);q.push([a,b]);}}}if(!found)return [];const out=[];while(found.join(',')!==start.join(',')){out.push({x:found[0]*grid,y:found[1]*grid});found=parent.get(found.join(','));if(!found)break;}return out.reverse();}
-try{
- await boot();await api('state');await api('profile',{name:'Isolated Playtest'});if(process.env.TEST_WEAPON)await api('weapon/equip',{weapon:process.env.TEST_WEAPON});let s=(await api('start',{})).run,phase=0,waypoints=[],lastGoal='',lastPathTime=-1,logTime=-10;const started=Date.now();
- while(s.status==='active'&&Date.now()-started<180000){
-  const p=s.player;let target=phase===0?SHRINE:phase===1?{x:580,y:720}:phase===2?BOSS:HOME;
-  if(phase===0&&s.relicReady&&dist(p,SHRINE)<110){s=(await api('relic',{relic:'storm'})).run;phase=1;console.log('Relic selected.');}
-  if(phase===1&&s.chest){phase=2;console.log('Healing cache recovered.');}if(s.bossDead)phase=3;
-  const enemies=[...s.enemies,...(s.boss.awake&&s.boss.hp>0?[s.boss]:[])].filter(e=>e.hp>0).sort((a,b)=>dist(p,a)-dist(p,b));const e=enemies[0],fighting=e&&dist(e,p)<320&&phase!==3;if(fighting)target=e;let dx=0,dy=0,dodge=false;
-  if(fighting&&e.type==='boss'&&e.wind>0){let a=Math.atan2(p.y-e.targetY,p.x-e.targetX);if(dist(p,{x:e.targetX,y:e.targetY})<10)a=Math.atan2(p.y-e.y,p.x-e.x);if(dist(p,{x:e.targetX,y:e.targetY})<e.radius+40){dx=Math.cos(a);dy=Math.sin(a);dodge=p.dodge<=0&&e.wind<.4;}}
-  else if(!fighting||dist(e,p)>(e.type==='boss'?105:75)){const key=Math.round(target.x/50)+','+Math.round(target.y/50);if(key!==lastGoal||s.elapsed-lastPathTime>.5){waypoints=route(p,target);lastGoal=key;lastPathTime=s.elapsed;}while(waypoints.length&&dist(p,waypoints[0])<20)waypoints.shift();const point=waypoints[0]||target,a=Math.atan2(point.y-p.y,point.x-p.x);dx=Math.cos(a);dy=Math.sin(a);}
-  if(fighting&&e.wind>0&&e.type!=='boss'&&e.type!=='archer'&&dist(p,e)<110&&p.dodge<=0){const a=Math.atan2(p.y-e.y,p.x-e.x);dx=Math.cos(a);dy=Math.sin(a);dodge=true;}
-  s=(await api('input',{dx,dy,angle:fighting?Math.atan2(e.y-p.y,e.x-p.x):Math.atan2(dy,dx),attack:false,attackId:fighting&&!(e.type==='boss'&&e.wind>0)&&p.action==='idle'&&p.stamina>15?++command:undefined,heavyId:fighting&&!(e.type==='boss'&&e.wind>0)&&p.combo===2&&p.action==='idle'&&p.stamina>=22?++command:undefined,stormId:fighting&&dist(e,p)<180&&p.storm<=0&&p.stamina>55?++command:undefined,potionId:p.hp<p.maxHp-45&&p.potions>0&&p.potionCooldown<=0?++command:undefined,guard:!!fighting&&e.type==='boss'&&e.wind>0,dodge,interact:true})).run;
-  // This combat bot is tuned for axe range. Opening a random cache must not silently change its tactics.
-  if(s.status==='active'&&s.player.weapon!=='axe'&&s.player.action==='idle')s=(await api('weapon/equip',{weapon:'axe'})).run;
-  if(s.elapsed-logTime>=10){logTime=s.elapsed;console.log(`Time ${Math.round(s.elapsed)}s · vitality ${s.player.hp} · kills ${s.kills} · boss ${s.boss.hp}`);}
-  await new Promise(r=>setTimeout(r,80));
+let cookie='';
+
+async function boot(){
+ child=spawn(process.execPath,['server.js'],{
+  cwd:root,
+  env:{...process.env,PORT:'5195',HOST:'127.0.0.1',DATA_DIR:dir},
+  stdio:['ignore','pipe','inherit']
+ });
+ await new Promise((resolve,reject)=>{
+  child.stdout.once('data',resolve);
+  child.once('error',reject);
+  child.once('exit',code=>reject(Error('Server exited '+code)));
+ });
+}
+
+async function stop(){
+ if(!child?.pid||child.exitCode!==null||child.signalCode!==null)return;
+ await new Promise(resolve=>{child.once('exit',resolve);child.kill();});
+}
+
+async function api(endpoint,data,status=200){
+ const response=await fetch(base+'/api/'+endpoint,{
+  method:data===undefined?'GET':'POST',
+  headers:{Cookie:cookie,'Content-Type':'application/json'},
+  body:data===undefined?undefined:JSON.stringify(data),
+  signal:AbortSignal.timeout(5000)
+ });
+ cookie=response.headers.get('set-cookie')?.split(';')[0]||cookie;
+ const result=await response.json();
+ assert.equal(response.status,status,endpoint+': '+(result.error||'unexpected status'));
+ return result;
+}
+
+async function waitForRun(description,predicate,timeout=3500){
+ const end=Date.now()+timeout;
+ while(Date.now()<end){
+  const {run}=await api('run');
+  if(run&&predicate(run))return run;
+  await delay(100);
  }
- assert.equal(s.status,'won','Bot must finish through normal player inputs');let saved=await api('state');assert.equal(saved.player.wins,1);assert.equal(saved.player.best,s.score);assert.equal(saved.player.salvage,s.salvage);assert.equal(saved.leaderboard.length,1);
- for(let i=0;i<3;i++)await api('input',{interact:true,score:999999});saved=await api('state');assert.equal(saved.player.wins,1,'Extraction cannot be recorded twice');
- const donated=await api('contribute',{amount:50});assert.equal(donated.player.salvage,s.salvage-50);assert.equal(donated.world.salvage,50);
- await stop();await boot();const persisted=await api('state');assert.equal(persisted.player.best,s.score);assert.equal(persisted.player.salvage,s.salvage-50);assert.equal(persisted.world.salvage,50);assert.equal(persisted.run,null);
- console.log(`PASS: complete HTTP expedition, ${s.score} points, ${s.salvage} salvage, one-time reward, contribution and restart persistence.`);
-}finally{await stop();const resolved=path.resolve(dir);assert.ok(resolved.startsWith(path.resolve(tmpdir())+path.sep)&&path.basename(resolved).startsWith('isles-playtest-'));await rm(resolved,{recursive:true,force:true});}
+ assert.fail('Timed out waiting for '+description);
+}
+
+try{
+ await boot();
+ await api('state');
+ const {player}=await api('profile',{name:'Isolated Review'});
+ const {key}=await api('save/key',{});
+ const {run}=await api('start',{arena:'coast'});
+ assert.equal(run.mode,'survival');
+ assert.equal(run.arenaId,'coast');
+ assert.equal(run.wave,0);
+ await api('weapon/equip',{weapon:'pulse-carbine'},400);
+
+ await api('input',{interact:true});
+ await waitForRun('the starting weapon cache',s=>s.openedCaches.includes('starter'));
+ await api('input',{interact:false});
+ await delay(120);
+ await api('input',{interact:true});
+ const armed=await waitForRun('the rare harbour cache',s=>s.player.weapon==='pulse-carbine');
+ assert.ok(armed.openedCaches.includes('harbour-armory'));
+ assert.ok(armed.inventory.includes('pulse-carbine'));
+
+ await api('input',{attack:true,angle:0});
+ const fired=await waitForRun('a server-authorized shot',s=>s.events.some(e=>e.type==='pulse-fired'));
+ assert.ok(fired.events.some(e=>e.weapon==='pulse-carbine'));
+ assert.ok(fired.player.stamina<fired.player.maxStamina);
+ const firstWave=await waitForRun('the first wave',s=>s.wave===1);
+ assert.equal(firstWave.enemies.filter(e=>e.hp>0).length,6);
+ await waitForRun('bots to pursue the hero',s=>s.enemies.some(e=>Math.hypot(e.x-e.homeX,e.y-e.homeY)>30));
+
+ const defeated=await waitForRun('a completed survival record',s=>s.status==='dead'&&s.recorded,60000);
+ assert.equal(defeated.wave,1);
+ const saved=await api('state');
+ assert.equal(saved.player.wins,0);
+ assert.equal(saved.player.gear.survival.runs,1);
+ assert.equal(saved.player.gear.survival.bestSeconds,Math.floor(defeated.elapsed));
+ assert.equal(saved.player.gear.survival.bestWave,1);
+ assert.ok(saved.player.gear.foundWeapons.includes('pulse-carbine'));
+ await api('input',{interact:true,score:999999});
+ assert.deepEqual((await api('state')).player.gear.survival,saved.player.gear.survival);
+
+ await stop();
+ await boot();
+ cookie='';
+ const restored=await api('save/restore',{key});
+ assert.equal(restored.player.id,player.id);
+ assert.deepEqual(restored.player.gear,saved.player.gear);
+ assert.equal(restored.run,null);
+ console.log('PASS: Solo Survival pursuit, rare loot, server-authorized firing, one-time results and recovery after restart.');
+}finally{
+ await stop();
+ const resolved=path.resolve(dir);
+ assert.ok(resolved.startsWith(path.resolve(tmpdir())+path.sep)&&path.basename(resolved).startsWith('isles-playtest-'));
+ await rm(resolved,{recursive:true,force:true});
+}

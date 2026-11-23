@@ -1,3 +1,4 @@
+import {FIREARMS} from './arsenal.js';
 import {CAMPS} from './voyage-data.js';
 export const SAFEHOUSE={x:445,y:1315,name:'Hearthhall'};
 export const FORGE={x:647,y:1460,name:'Astrid’s forge'};
@@ -12,4 +13,4 @@ export function loadoutStats(gear={},wins=0){const axe=Math.max(0,Math.min(3,Num
 export const safeArea=p=>(p.y>1300&&p.x<900)||CAMPS.some(c=>Math.hypot(p.x-c.x,p.y-c.y)<160);
 export const near=(p,q,r=115)=>Math.hypot(p.x-q.x,p.y-q.y)<r;
 
-export const WEAPONS={axe:{name:'Raider axe',description:'Balanced strikes and a broad finisher.',damage:1,speed:1,reach:1,cost:1},sword:{name:'Storm sword',description:'Fast cuts with lower stamina cost and damage.',damage:.9,speed:.76,reach:1.05,cost:.8},spear:{name:'Harbour spear',description:'Long reach, slower recovery and a narrow strike.',damage:1.1,speed:1.2,reach:1.45,cost:1.15}};
+export const WEAPONS={...FIREARMS,axe:{name:'Raider axe',description:'Balanced strikes and a broad finisher.',damage:1,speed:1,reach:1,cost:1},sword:{name:'Storm sword',description:'Fast cuts with lower stamina cost and damage.',damage:.9,speed:.76,reach:1.05,cost:.8},spear:{name:'Harbour spear',description:'Long reach, slower recovery and a narrow strike.',damage:1.1,speed:1.2,reach:1.45,cost:1.15}};

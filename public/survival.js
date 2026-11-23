@@ -4,13 +4,17 @@ import {connectedEnemySpawn} from './pursuit.js';
 
 const MAX_ACTIVE=24;
 const CLEAR_DELAY=4;
-const REINFORCEMENT_DELAY=22;
 const REJOIN_DISTANCE=1050;
+export const SURVIVAL_BOTS=Object.freeze({
+ scout:{type:'raider',health:56,speed:165,reach:76,hitRange:92,wind:.34,cooldown:1.1,damage:9},
+ bulwark:{type:'brute',health:165,speed:68,reach:103,hitRange:130,wind:1.04,cooldown:2.15,damage:29}
+});
+const LINEUP=['raider','scout','archer','raider','brute','bulwark','archer','scout'];
 
 export function startSurvival(s,arenaId){
  const arena=arenaFor(arenaId);
  s.arenaId=arena.id;s.arenaName=arena.name;s.home={x:arena.x,y:arena.y};Object.assign(s.player,s.home);
- s.mode='survival';s.survivalVersion=2;s.wave=0;s.nextWave=2;s.reinforceAt=2;s.enemies=[];
+ s.mode='survival';s.survivalVersion=3;s.wave=0;s.nextWave=2;s.enemies=[];
  s.boss.hp=0;s.boss.awake=false;s.bossDead=false;s.relicReady=false;
  return s;
 }
@@ -47,33 +51,31 @@ function rallyStragglers(s){
 
 export function survivalStep(s,dt,emit){
  if(s.mode!=='survival'||s.status!=='active')return;
- // Old in-progress saves pick up the new reinforcement timer in place.
- s.reinforceAt??=s.elapsed+REINFORCEMENT_DELAY;
  rallyStragglers(s);
- const active=s.enemies.filter(e=>e.hp>0).length;
- if(!active)s.nextWave-=dt;
- const due=active?s.elapsed>=s.reinforceAt:s.nextWave<=0;
- if(!due||active>=MAX_ACTIVE)return;
- const wave=s.wave+1,capacity=MAX_ACTIVE-active;
- const count=Math.min(capacity,4+wave*2);
+ if(s.enemies.some(e=>e.hp>0))return;
+ s.nextWave-=dt;
+ if(s.nextWave>0)return;
+ const wave=s.wave+1,count=Math.min(MAX_ACTIVE,4+wave*2);
  const spawns=[];
  s.enemies=s.enemies.filter(e=>e.hp>0||e.death>0);
  for(let id=0;id<MAX_ACTIVE&&spawns.length<count;id++){
   if(s.enemies.some(e=>e.id===id))continue;
   const point=spawnPoint(s,id);
   if(!point)continue;
-  const type=id%5===4?'brute':id%3===2?'archer':'raider';
-  const base=type==='brute'?130:type==='archer'?64:80;
+  const role=LINEUP[id%LINEUP.length];
+  const variant=SURVIVAL_BOTS[role];
+  const type=variant?.type||role;
+  const base=variant?.health??(type==='brute'?130:type==='archer'?64:80);
   const hp=Math.round(base*(1+Math.min(2,(wave-1)*.09)));
   const enemy={id,type,hp,maxHp:hp,angle:0,flash:0,stagger:0,death:0};
+  if(variant)enemy.variant=role;
   reposition(enemy,point);s.enemies.push(enemy);spawns.push(enemy);
  }
  if(!spawns.length){
-  if(active)s.reinforceAt=s.elapsed+1;
-  else s.nextWave=1;
+  s.nextWave=1;
   return;
  }
- s.wave=wave;s.nextWave=CLEAR_DELAY;s.reinforceAt=s.elapsed+REINFORCEMENT_DELAY;
+ s.wave=wave;s.nextWave=CLEAR_DELAY;
  emit(s,'wave',{wave,count:spawns.length});
 }
 

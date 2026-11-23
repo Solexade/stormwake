@@ -4,7 +4,8 @@ import {createRun,setInput,tick,weaponAttack} from '../public/combat.js';
 import {WEAPONS} from '../public/catalog.js';
 import {snapshot} from '../public/combat.js';
 test('retired gun maps to axe without losing an existing expedition',()=>{
- assert.deepEqual(Object.keys(WEAPONS).sort(),['axe','spear','sword']);
+ assert.equal(Object.hasOwn(WEAPONS,'gun'),false);
+ assert.ok(WEAPONS.axe&&WEAPONS.spear&&WEAPONS.sword);
  const s=createRun('legacy',100,{gear:{weapon:'gun',armour:2}});
  assert.equal(s.player.weapon,'axe');
  Object.assign(s.player,{weapon:'gun',hp:64,action:'heavy',actionTime:.03});
