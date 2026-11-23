@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAssetCache} from '../public/scene/asset-cache.js';
-import {qualityPreset,createFrameMeter,frameStatistics} from '../public/scene/quality.js';
+import {adjustedPixelRatio,qualityPreset,createFrameMeter,frameStatistics} from '../public/scene/quality.js';
 import {shorelineSegments} from '../public/scene/harbour.js';
 import {LAND,landAt,HOME,SHRINE,BOSS,walkable} from '../public/world.js';
 import {validateAssets} from '../scripts/check-assets.mjs';
@@ -24,7 +24,7 @@ test('shore ribbon samples stay outside land and never mutate gameplay coordinat
 });
 
 test('Performance preset removes optional shore/shadow/post cost without changing simulation',()=>{
-  const low=qualityPreset('low');assert.equal(low.pixelRatio,1);assert.equal(low.shadows,false);assert.equal(low.bloom,false);assert.equal(low.shore,false);
+  const low=qualityPreset('low');assert.ok(low.pixelRatio<1);assert.equal(low.shadows,false);assert.equal(low.bloom,false);assert.equal(low.shore,false);
   assert.equal(qualityPreset('unknown'),qualityPreset('high'));
 });
 
@@ -36,10 +36,18 @@ test('frame statistics include slow frames, bound history and exclude suspended-
 });
 
 test('every shipped asset has matching provenance/hash and every browser import resolves',async()=>{
-  assert.equal(await validateAssets(),38);
+  assert.equal(await validateAssets(),39);
 });
 
 import {initialQuality} from '../public/scene/quality.js';
-test('touch devices start lightweight without changing desktop quality',()=>{assert.equal(initialQuality(true),'low');assert.equal(initialQuality(false),'high');});
+test('touch devices start in Low and desktop starts in Medium',()=>{assert.equal(initialQuality(true),'low');assert.equal(initialQuality(false),'medium');});
 
-test('Medium caps resolution between Low and High and omits bloom',()=>{const m=qualityPreset('medium');assert.ok(m.pixelRatio>qualityPreset('low').pixelRatio);assert.ok(m.pixelRatio<qualityPreset('high').pixelRatio);assert.equal(m.bloom,false);assert.equal(m.shadows,true);});
+test('Medium caps resolution between Low and High and keeps nearby detail without extra render passes',()=>{const m=qualityPreset('medium');assert.ok(m.pixelRatio>qualityPreset('low').pixelRatio);assert.ok(m.pixelRatio<qualityPreset('high').pixelRatio);assert.ok(m.sceneryRange>0);assert.equal(m.bloom,false);assert.equal(m.shadows,false);});
+
+test('adaptive resolution needs sustained slow frames and respects the floor and High preset',()=>{
+ assert.equal(adjustedPixelRatio('medium',1,{samples:15,medianMs:70}),1);
+ assert.equal(adjustedPixelRatio('medium',1,{samples:70,medianMs:27}),1);
+ assert.equal(adjustedPixelRatio('medium',1,{samples:70,medianMs:50}),.82);
+ assert.equal(adjustedPixelRatio('low',.70,{samples:70,medianMs:50}),.65);
+ assert.equal(adjustedPixelRatio('high',1.5,{samples:70,medianMs:50}),1.5);
+});

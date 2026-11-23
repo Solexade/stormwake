@@ -96,14 +96,18 @@ export function fitHarbourAsset(model, {x,z,radius,height,y=0,angle=0}) {
  const scale=Math.min(radius>0?radius/Math.hypot(size.x/2,size.z/2):Infinity,height>0?height/size.y:Infinity);
  const group=new THREE.Group();group.add(model);model.position.sub(bounds.getCenter(new THREE.Vector3()));model.position.y-=bounds.min.y-bounds.getCenter(new THREE.Vector3()).y;
  group.scale.setScalar(scale);group.position.set(x,y,z);group.rotation.y=angle;
- model.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;}});
+ model.traverse(n=>{if(n.isMesh){n.castShadow=(height||radius)>=1.8;n.receiveShadow=true;}});
  return group;
 }
-export function createHarbourAssets(scene,canvas,load,onReady=()=>{}) {
- const entries=[];let quality=initialQuality(!!globalThis.matchMedia?.('(any-pointer:coarse)').matches);
+export function createHarbourAssets(scene,canvas,load,onReady=()=>{},{stream=false,initial=initialQuality(!!globalThis.matchMedia?.('(any-pointer:coarse)').matches)}={}) {
+ const entries=[];let quality=initial,inFlight=0,nextLoad=0;
  const assetId=e=>typeof e.id==='string'?e.id:e.id[quality]||e.id.medium;
+ const syncEntry=e=>{
+  const selected=quality==='low'||!e.near?null:e.models.get(assetId(e));
+  e.fallback.visible=!selected;
+  for(const [id,model] of e.models)model.visible=model===selected&&id===assetId(e);
+ };
  const sync=()=>{
-  for(const e of entries){const selected=quality==='low'?null:e.models.get(assetId(e));e.fallback.visible=!selected;for(const [id,model]of e.models)model.visible=model===selected;}
   canvas.dataset.harbourAssets=String(entries.filter(e=>e.models.size).length);
   canvas.dataset.harbourPending=String(entries.reduce((n,e)=>n+e.pending.size,0));
   canvas.dataset.harbourFailures=String(entries.filter(e=>e.errors.size).length);
@@ -112,18 +116,47 @@ export function createHarbourAssets(scene,canvas,load,onReady=()=>{}) {
  const start=e=>{
   const id=assetId(e);if(e.models.has(id))return Promise.resolve();if(e.pending.has(id))return e.pending.get(id);
   e.errors.delete(id);const began=performance.now();
+  inFlight++;
   const pending=Promise.resolve().then(()=>load(id)).then(g=>{
    const model=fitHarbourAsset(g.scene,e.placement);onReady(model);e.models.set(id,model);scene.add(model);
   }).catch(error=>{e.errors.set(id,String(error?.message||error));console.warn('Harbour asset fallback:',id,error);})
-  .finally(()=>{e.duration=performance.now()-began;e.pending.delete(id);sync();});
+  .finally(()=>{inFlight--;e.duration=performance.now()-began;e.pending.delete(id);syncEntry(e);sync();});
   e.pending.set(id,pending);sync();return pending;
  };
  return {
   add(id,fallback,placement){
    if(entries.some(e=>e.fallback===fallback))throw Error('Fallback already registered');
-   const entry={id,placement,fallback,models:new Map(),pending:new Map(),errors:new Map()};entries.push(entry);sync();return quality!=='low'?start(entry):Promise.resolve();
+   const entry={id,placement,fallback,near:!stream,models:new Map(),pending:new Map(),errors:new Map()};
+   entries.push(entry);
+   return !stream&&quality!=='low'?start(entry):Promise.resolve();
   },
-  setQuality(value){quality=['high','medium','low'].includes(value)?value:'high';const pending=quality!=='low'?entries.map(start):[];sync();return Promise.all(pending);},
-  retry(){return quality!=='low'?Promise.all(entries.filter(e=>e.errors.has(assetId(e))).map(start)):Promise.resolve();}
+  setQuality(value){
+   quality=['high','medium','low'].includes(value)?value:'medium';
+   if(stream){for(const e of entries)e.errors.delete(assetId(e));nextLoad=0;}
+   for(const e of entries)syncEntry(e);
+   sync();
+   return !stream&&quality!=='low'?Promise.all(entries.map(start)):Promise.resolve();
+  },
+  update(x,z,radius,now){
+   if(!stream||quality==='low'||now<nextLoad)return;
+   nextLoad=now+.12;
+   const candidates=[];
+   for(const e of entries){
+    const distance=Math.hypot(x-e.placement.x,z-e.placement.z);
+    // Keep a loaded prop visible a little farther out to avoid flicker along the streaming edge.
+    const near=distance<=radius+(e.near?10:0);
+    if(near!==e.near){e.near=near;syncEntry(e);}
+    const id=assetId(e);
+    if(distance<=radius&&!e.models.has(id)&&!e.pending.has(id)&&!e.errors.has(id))candidates.push({e,distance});
+   }
+   candidates.sort((a,b)=>a.distance-b.distance);
+   for(const {e} of candidates.slice(0,Math.max(0,2-inFlight)))start(e);
+  },
+  retry(){
+   if(quality==='low')return Promise.resolve();
+   const failed=entries.filter(e=>e.errors.has(assetId(e)));
+   if(stream){for(const e of failed)e.errors.delete(assetId(e));nextLoad=0;return Promise.resolve();}
+   return Promise.all(failed.map(start));
+  }
  };
 }

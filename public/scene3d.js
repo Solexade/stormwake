@@ -8,7 +8,7 @@ import {createHeldEffects} from './scene/held-effects.js';
 import {createEnvironment} from './scene/environment.js';
 import {createLighting} from './scene/lighting.js';
 import {createHarbourShore} from './scene/harbour.js';
-import {qualityPreset,createFrameMeter,initialQuality} from './scene/quality.js';
+import {qualityPreset,createFrameMeter,initialQuality,adjustedPixelRatio} from './scene/quality.js';
 import {PALETTE} from './scene/palette.js';
 import * as THREE from './vendor/three.module.js';
 import {WORLD,LAND,BRIDGES,HOME,SHRINE,BOSS,OBSTACLES,landAt} from './game.js';
@@ -17,27 +17,24 @@ import {SAFEHOUSE,FORGE,SUPPLIES} from './catalog.js';
 
 // Local, original geometry and procedural surfaces. Coordinates match the server.
 const S=1/40,UP=new THREE.Vector3(0,1,0);
-export function createWorld(canvas){
- const mobile=matchMedia('(any-pointer:coarse)').matches;
- const renderer=new THREE.WebGLRenderer({canvas,antialias:!mobile,powerPreference:'high-performance'});
- renderer.setPixelRatio(Math.min(devicePixelRatio,mobile?1:1.6));renderer.shadowMap.enabled=!mobile;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+export function createWorld(canvas,quality=initialQuality(matchMedia('(any-pointer:coarse)').matches)){
+ const renderer=new THREE.WebGLRenderer({canvas,antialias:quality==='high',powerPreference:'high-performance'});
+ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
  renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=PALETTE.exposure;
  const cinema=cinematicPass(renderer);
  const scene=new THREE.Scene();scene.background=new THREE.Color(PALETTE.fog);scene.fog=new THREE.FogExp2(PALETTE.fog,PALETTE.fogDensity);
- const camera=new THREE.PerspectiveCamera(48,1,.08,190);const look=new THREE.Vector3(HOME.x*S,1,HOME.y*S);let first=true,mode='follow',quality=initialQuality(mobile);
- const {sun,sky,skyMaterial,environment}=createLighting(renderer,scene);
- const kit=createEnvironment(renderer,scene,canvas,sky);
- const {sceneryVisibility,harbourAssets,mats,box,ball,cylinder,beam,mesh,form,batchStatic,boat,chest,crystal,shrineLight,beaconFlame,beaconLight,flames,waterMaterial,foliage,pennants,motes,buildings,grass,harbourPlants,contactMaterial,materials}=kit;
+ const camera=new THREE.PerspectiveCamera(48,1,.08,190);const look=new THREE.Vector3(HOME.x*S,1,HOME.y*S);let first=true,mode='follow';
+ const {sun,sky,skyMaterial}=createLighting(scene);
+ const kit=createEnvironment(renderer,scene,canvas,sky,quality);
+ const {sceneryVisibility,harbourAssets,mats,box,ball,cylinder,beam,mesh,form,batchStatic,boat,chest,crystal,shrineLight,beaconFlame,beaconLight,flames,waterMaterial,foliage,pennants,motes,buildings,grass,harbourPlants,contactMaterial,materials,terrain}=kit;
  const voyage=createVoyageScenery(scene,kit);
  const shore=createHarbourShore(scene),meter=createFrameMeter();
  const metricsFrustum=new THREE.Frustum(),metricsMatrix=new THREE.Matrix4();
- materials.ready.then(()=>{if(scene.environment!==environment.texture)environment.dispose();});
  const warrior=createActorFactory({scene,mats,box,ball,cylinder,beam,mesh,form,batchStatic,contactMaterial,canvas});
  let orbit=0;
  const player=warrior('player');
  window.addEventListener('stormwake:hero',event=>dressWarrior(player,canvas,event.detail));const actors=new Map();
- const merchants=[...PEOPLE.map(place=>({place,title:place.name.toUpperCase(),actor:warrior('player')})),{place:FORGE,title:'ASTRID · FORGE',actor:warrior('player')},{place:SUPPLIES,title:'EDDA · SUPPLIES',actor:warrior('player')}];
- for(const npc of merchants){npc.actor.civilian=true;npc.actor.weapon.visible=false;npc.actor.shield.visible=false;}
+ const merchants=[...PEOPLE.map(place=>({place,title:place.name.toUpperCase()})),{place:FORGE,title:'ASTRID · FORGE'},{place:SUPPLIES,title:'EDDA · SUPPLIES'}];
  const anvilGroup=new THREE.Group();anvilGroup.position.set((FORGE.x+33)*S,0,FORGE.y*S);scene.add(anvilGroup);cylinder(mats.darkwood,0,.30,0,.28,.35,.6,anvilGroup);box(mats.metal,0,.68,0,.82,.19,.38,anvilGroup);box(mats.metal,0,.51,0,.30,.2,.24,anvilGroup);const horn=mesh(new THREE.ConeGeometry(.13,.36,8),mats.steel,.55,.7,0,anvilGroup);horn.rotation.z=-Math.PI/2;
  const supplyFallback=box(mats.wood,(SUPPLIES.x+33)*S,.37,SUPPLIES.y*S,.7,.74,.7);harbourAssets.add('wooden_barrels_01.glb',supplyFallback,{x:(SUPPLIES.x+33)*S,z:SUPPLIES.y*S,height:.74});for(let i=0;i<3;i++)cylinder(mats.glow,(SUPPLIES.x+23+i*10)*S,.89,SUPPLIES.y*S,.04,.065,.28);
  // Skaal has flapping wings and follows the shoulder rather than a flat icon.
@@ -50,22 +47,46 @@ export function createWorld(canvas){
   marker.rotation.x=-Math.PI/2;marker.visible=false;marker.castShadow=false;arrivals.push(marker);
  }
  const stormRing=mesh(new THREE.TorusGeometry(1,.025,5,64),mats.glow);stormRing.rotation.x=Math.PI/2;stormRing.visible=false;
- const heldEffects=createHeldEffects(scene),visibleActors=new Set();
+ const heldEffects=createHeldEffects(scene),activeEnemies=new Set(),actorPool=new Map();
  const targetRune=mesh(new THREE.TorusGeometry(1.1,.017,5,48),mats.glow);targetRune.rotation.x=Math.PI/2;
  const arrows=[];for(let i=0;i<24;i++){const a=new THREE.Group();const shaft=mesh(new THREE.CylinderGeometry(.019,.019,.60,5),mats.wood,0,0,0,a);const tip=mesh(new THREE.ConeGeometry(.046,.14,5),mats.steel,0,.36,0,a);a.visible=false;scene.add(a);arrows.push(a);}
  // Minimal tactical overlay stays crisp without changing the 3D camera.
  const overlay=document.createElement('canvas');overlay.className='tactical-overlay';overlay.setAttribute('aria-hidden','true');canvas.parentElement.appendChild(overlay);const hud=overlay.getContext('2d');let w=900,h=650;
  function resize(){const r=canvas.getBoundingClientRect();w=r.width;h=r.height;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();overlay.width=w;overlay.height=h;}
  new ResizeObserver(resize).observe(canvas);resize();
- const occlusionRay=new THREE.Raycaster();
+ const occlusionRay=new THREE.Raycaster(),boundsHit=new THREE.Vector3();
+ for(const building of buildings)building.bounds=new THREE.Box3().setFromObject(building.group);
  const raycaster=new THREE.Raycaster(),ground=new THREE.Plane(UP,0),intersection=new THREE.Vector3();
  function aimAt(mouse,p){raycaster.setFromCamera(new THREE.Vector2(mouse.x/w*2-1,-mouse.y/h*2+1),camera);if(raycaster.ray.intersectPlane(ground,intersection))return Math.atan2(intersection.z-p.y*S,intersection.x-p.x*S);return p.angle;}
  function minimap(run){const mw=106,mh=79,x=w-mw-17,y=h-mh-80;if(w<600)return;hud.fillStyle='#0a1829bb';hud.fillRect(x,y,mw,mh);hud.strokeStyle='#97b1b244';hud.strokeRect(x,y,mw,mh);hud.save();hud.translate(x,y);hud.scale(mw/WORLD.width,mh/WORLD.height);hud.fillStyle='#96ada27a';for(const p of LAND){hud.beginPath();p.forEach(([x,z],i)=>i?hud.lineTo(x,z):hud.moveTo(x,z));hud.closePath();hud.fill();}hud.fillStyle='#b8a480aa';for(const b of BRIDGES)hud.fillRect(b.x,b.y,b.w,b.h);hud.fillStyle='#f4cc8a';hud.beginPath();hud.arc(run.player.x,run.player.y,50,0,7);hud.fill();hud.restore();}
+ let preset=qualityPreset(quality),materialStart=null;
+ function setQuality(value){
+  quality=['low','medium','high'].includes(value)?value:'medium';
+  preset=qualityPreset(quality);
+  harbourAssets.setQuality(quality);
+  waterMaterial.uniforms.detail.value=quality==='low'?0:1;
+  renderer.setPixelRatio(Math.min(devicePixelRatio,preset.pixelRatio));
+  renderer.shadowMap.enabled=preset.shadows;
+  scene.environmentIntensity=quality==='high'?.65:0;
+  if(materialStart===Infinity){materials.setQuality(quality);terrain.setQuality(quality);}
+  grass.visible=preset.foliage;harbourPlants.visible=preset.foliage;
+  meter.reset();resize();
+ }
+ setQuality(quality);
  function draw(t,dt,run,playing,community,options={}){
   voyage.update(run,t);
   const frameStart=performance.now();meter.begin(frameStart);
-  shore.update(t,qualityPreset(quality).shore,options.reducedMotion);
-  for(const npc of merchants){npc.actor.root.visible=!run||Math.hypot(npc.place.x-run.player.x,npc.place.y-run.player.y)<1400;if(npc.actor.root.visible)animateActor(npc.actor,{x:npc.place.x+20,y:npc.place.y,angle:Math.PI/2,hp:1,maxHp:1,vx:0,vy:0,action:'idle',weapon:'axe'},dt,t,camera,first);npc.actor.weapon.visible=false;npc.actor.shield.visible=false;}
+  const p=playing&&run?{...run.player,visualHurt:run.effects.some(e=>e.type==='hurt'&&e.life>.16)}:{...HOME,angle:1.05,hp:120,maxHp:120};
+  if(materialStart===null)materialStart=t+.6;
+  if(t>=materialStart){materials.setQuality(quality);terrain.setQuality(quality);materialStart=Infinity;}
+  harbourAssets.update(p.x*S,p.y*S,preset.sceneryRange,t);
+  shore.update(t,preset.shore,options.reducedMotion);
+  for(const npc of merchants){
+   if(Math.hypot(npc.place.x-p.x,npc.place.y-p.y)>=1150){if(npc.actor)npc.actor.root.visible=false;continue;}
+   if(!npc.actor){npc.actor=warrior('player');npc.actor.civilian=true;npc.actor.root.visible=false;}
+   animateActor(npc.actor,{x:npc.place.x+20,y:npc.place.y,angle:Math.PI/2,hp:1,maxHp:1,vx:0,vy:0,action:'idle',weapon:'axe'},dt,t,camera,first);
+   npc.actor.weapon.visible=false;npc.actor.shield.visible=false;
+  }
   const windTime=options.reducedMotion?0:t;
   skyMaterial.uniforms.time.value=windTime;
   if(quality!=='low')foliage.forEach(f=>{f.mesh.rotation.z=Math.sin(windTime*.8+f.phase)*f.strength;f.mesh.position.x=f.x+Math.sin(windTime*.8+f.phase)*f.strength*.7;});
@@ -75,20 +96,33 @@ export function createWorld(canvas){
   crystal.position.x=((run?.shrine||SHRINE).x-SHRINE.x)*S;crystal.position.z=((run?.shrine||SHRINE).y-SHRINE.y)*S;shrineLight.position.x=crystal.position.x;shrineLight.position.z=crystal.position.z;
   crystal.rotation.y=windTime*.5;crystal.position.y=1.2+Math.sin(windTime*1.8)*.10;crystal.visible=!playing||!run?.relic;shrineLight.intensity=crystal.visible?4:0;chest.visible=!playing||!run?.chest;
   beaconFlame.visible=community.salvage>=community.target;beaconLight.intensity=beaconFlame.visible?14:0;beaconFlame.scale.y=1.5+Math.sin(t*8)*.2;flames.forEach((f,i)=>f.scale.setScalar(1+Math.sin(t*9+i)*.13));
-  const p=playing&&run?{...run.player,visualHurt:run.effects.some(e=>e.type==='hurt'&&e.life>.16)}:{...HOME,angle:1.05,hp:120,maxHp:120};
   const actorDt=run?.paused||run?.inSafehouse?0:dt;
   animateActor(player,p,actorDt,t,camera,first);
   heldEffects.update(player,p,t,playing&&!!run&&!run.paused&&!run.inSafehouse&&!options.reducedMotion);
-  visibleActors.clear();
+  activeEnemies.clear();
   if(playing&&run)for(const e of [...run.enemies,run.boss]){
-   if(e.hp<=0&&!e.death)continue;
-   const key=(e.variant||e.type)+':'+e.id;
-   if(!actors.has(key))actors.set(key,warrior(e.type,e.variant));
-   const actor=actors.get(key);
-   visibleActors.add(actor);
+   if((e.hp<=0&&!e.death)||Math.hypot(e.x-p.x,e.y-p.y)>1500)continue;
+   activeEnemies.add(e);
+  }
+  const actorKey=e=>(e.variant||e.type)+':'+e.id;
+  const visibleKeys=new Set([...activeEnemies].map(actorKey));
+  for(const [key,actor] of actors)if(!visibleKeys.has(key)){
+   const kind=actor.type+':'+(actor.variant||'');
+   if(!actorPool.has(kind))actorPool.set(kind,[]);
+   actorPool.get(kind).push(actor);actors.delete(key);actor.root.removeFromParent();actor.root.visible=false;
+  }
+  for(const e of activeEnemies){
+   const key=actorKey(e);
+   let actor=actors.get(key);
+   if(!actor){
+    actor=actorPool.get(e.type+':'+(e.variant||''))?.pop()||warrior(e.type,e.variant);
+    actor.root.visible=false;actor.speed=actor.stride=actor.gaitBlend=actor.turnLean=0;
+    if(actor.avatar){actor.avatar.key=null;actor.avatar.footPlant=null;}
+    if(!actor.root.parent)scene.add(actor.root);
+    actors.set(key,actor);
+   }
    animateActor(actor,e,actorDt,t,camera,first);
   }
-  for(const a of actors.values())if(!visibleActors.has(a))a.root.visible=false;
   const px=player.root.position.x,pz=player.root.position.z;
   const target=new THREE.Vector3(),desired=new THREE.Vector3();
   if(playing){const lead=options.reducedMotion?0:.0025;target.set(px+(p.vx||0)*lead,1.0,pz+(p.vy||0)*lead-.35);const distance=mode==='tactical'?13:mode==='scenic'?5.2:8.2;const height=mode==='tactical'?15:mode==='scenic'?2.95:5.6;desired.set(px+Math.sin(orbit)*distance,height,pz+Math.cos(orbit)*distance);camera.fov+=((p.sprinting&&!options.reducedMotion?51:50)-camera.fov)*(1-Math.exp(-dt*3));}else{target.set(px-.9,1.0,pz-.15);desired.set(px+2.3,3.3,pz+6.1);camera.fov=w<600?54:47;}
@@ -113,8 +147,21 @@ export function createWorld(canvas){
   }
   const heroPoint=new THREE.Vector3(px,1.25,pz),sight=heroPoint.clone().sub(camera.position),sightDistance=sight.length();occlusionRay.set(camera.position,sight.normalize());occlusionRay.far=Math.max(0,sightDistance-.4);
   canvas.dataset.sceneryOccluded=String(sceneryVisibility.update(camera,heroPoint,dt,playing));
-  for(const building of buildings){if(!building.group.visible)continue;const obstructs=playing&&occlusionRay.intersectObject(building.group,true).length>0;building.opacity+=((obstructs?.18:1)-building.opacity)*(1-Math.exp(-dt*14));for(const [source,material] of building.materials){for(const slot of ['map','normalMap','roughnessMap','bumpMap'])if(material[slot]!==source[slot]){material[slot]=source[slot];material.needsUpdate=true;}material.color.copy(source.color);if(material.normalScale&&source.normalScale)material.normalScale.copy(source.normalScale);material.transparent=true;material.opacity=building.opacity;material.depthWrite=building.opacity>.95;}building.group.traverse(n=>{if(n.isMesh)n.castShadow=building.opacity>.95;});}
-  cinema.render(scene,camera,qualityPreset(quality).bloom);hud.clearRect(0,0,w,h);
+  for(const building of buildings){
+   if(!building.group.visible||!building.materials.length)continue;
+   const hit=playing&&occlusionRay.ray.intersectBox(building.bounds,boundsHit);
+   const obstructs=hit&&(building.bounds.containsPoint(camera.position)||camera.position.distanceTo(hit)<=occlusionRay.far)&&occlusionRay.intersectObject(building.group,true).length>0;
+   const previous=building.opacity;
+   building.opacity+=((obstructs?.18:1)-previous)*(1-Math.exp(-dt*14));
+   if(building.opacity>.995)building.opacity=1;
+   for(const [source,material] of building.materials){
+    for(const slot of ['map','normalMap','roughnessMap','bumpMap'])if(material[slot]!==source[slot]){material[slot]=source[slot];material.needsUpdate=true;}
+    material.color.copy(source.color);material.normalScale?.copy(source.normalScale);
+    material.transparent=building.opacity<1;material.opacity=building.opacity;material.depthWrite=building.opacity>.95;
+   }
+   if((previous>.95)!==(building.opacity>.95))building.group.traverse(n=>{if(n.isMesh)n.castShadow=building.opacity>.95;});
+  }
+  cinema.render(scene,camera,preset.bloom);hud.clearRect(0,0,w,h);
   if(playing&&run){
    for(const e of [...run.enemies,run.boss]){
     const warning=warningFor(e);if(!warning)continue;
@@ -154,7 +201,9 @@ export function createWorld(canvas){
     scene.traverseVisible(object=>{if(object.isMesh&&(!object.frustumCulled||metricsFrustum.intersectsObject(object))){visibleMeshes++;visibleInstances+=object.isInstancedMesh?object.count:1;}});
     canvas.dataset.visibleMeshes=String(visibleMeshes);canvas.dataset.visibleInstances=String(visibleInstances);canvas.dataset.pixelRatio=String(renderer.getPixelRatio());
     const measured=meter.read();canvas.dataset.frameP95Ms=measured.frame.p95Ms.toFixed(2);canvas.dataset.cpuP95Ms=measured.cpu.p95Ms.toFixed(2);canvas.dataset.frameSamples=String(measured.frame.samples);canvas.dataset.metricsAt=String(performance.now());canvas.dataset.graphicsQuality=quality;
+    const ratio=adjustedPixelRatio(quality,renderer.getPixelRatio(),measured.frame);
+    if(ratio!==renderer.getPixelRatio()){renderer.setPixelRatio(ratio);meter.reset();}
   }
  }
- return {draw,aimAt,setOrbit(value){orbit=value;},setMode(value){mode=value;},setQuality(value){quality=['low','medium','high'].includes(value)?value:'high';harbourAssets.setQuality(quality);waterMaterial.uniforms.detail.value=quality==='low'?0:1;const preset=qualityPreset(quality);renderer.setPixelRatio(Math.min(devicePixelRatio,preset.pixelRatio));renderer.shadowMap.enabled=preset.shadows;grass.visible=preset.foliage;harbourPlants.visible=preset.foliage;meter.reset();resize();},getInfo(){return {engine:'Three.js',revision:THREE.REVISION,quality,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,...meter.read()};}};
+ return {draw,aimAt,setOrbit(value){orbit=value;},setMode(value){mode=value;},setQuality,getInfo(){return {engine:'Three.js',revision:THREE.REVISION,quality,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,...meter.read()};}};
 }
