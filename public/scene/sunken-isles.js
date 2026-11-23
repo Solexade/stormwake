@@ -36,7 +36,9 @@ export function createSceneryVisibility() {
    for(const e of entries){if(!e.root.visible){e.wasVisible=false;continue;}
     // Broad phase avoids triangle raycasts through every scanned prop each frame.
     if(refresh||!e.wasVisible){const near=ray.ray.intersectBox(e.bounds,hit);e.blocked=!!(enabled&&near&&(e.bounds.containsPoint(camera.position)||camera.position.distanceTo(hit)<=ray.far)&&ray.intersectObject(e.root,true).length);}
-    e.wasVisible=true;const blocked=e.blocked;const target=blocked?.16:1;e.opacity+=(target-e.opacity)*(1-Math.exp(-Math.min(dt,.1)*18));if(blocked)count++;
+    e.wasVisible=true;const blocked=e.blocked;const target=blocked?.16:1;if(blocked)count++;
+    if(e.opacity===target)continue;
+    e.opacity+=(target-e.opacity)*(1-Math.exp(-Math.min(dt,.1)*18));if(Math.abs(target-e.opacity)<.003)e.opacity=target;
     for(const m of e.materials){m.material.opacity=m.opacity*e.opacity;m.material.transparent=e.opacity<.995||m.transparent;m.material.depthWrite=e.opacity>.95&&m.depthWrite;}
     for(const n of e.meshes)n.mesh.castShadow=n.shadow&&e.opacity>.95;
    }return count;

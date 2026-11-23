@@ -110,7 +110,7 @@ export function animateActor(a,s,dt,t,camera,first){if(a.type==='player'){const 
   if(a.sample!==s){a.sample=s;a.sampleAt=t;}
   const horizon=s.preview?0:Math.min(.15,Math.max(0,t-a.sampleAt)+.025);
   let px=s.x,py=s.y;
-  for(let elapsed=0;elapsed<horizon;elapsed+=.02){const step=Math.min(.02,horizon-elapsed),dx=(s.vx||0)*step,dy=(s.vy||0)*step;if(walkable(px+dx,py,16))px+=dx;if(walkable(px,py+dy,16))py+=dy;}
+  if(s.vx||s.vy)for(let elapsed=0;elapsed<horizon;elapsed+=.02){const step=Math.min(.02,horizon-elapsed),dx=(s.vx||0)*step,dy=(s.vy||0)*step;if(dx&&walkable(px+dx,py,16))px+=dx;if(dy&&walkable(px,py+dy,16))py+=dy;}
   const tx=px*S,tz=py*S,oldX=a.root.position.x,oldZ=a.root.position.z;
   const teleported=first||!a.root.visible||s.arrival>0||Math.hypot(tx-oldX,tz-oldZ)>12;
   if(s.preview||teleported)a.root.position.set(tx,.01,tz);else{a.root.position.x+=(tx-oldX)*Math.min(1,dt*23);a.root.position.z+=(tz-oldZ)*Math.min(1,dt*23);a.root.position.y=.01;}

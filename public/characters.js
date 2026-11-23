@@ -13,11 +13,15 @@ const ENEMY_RIGS={
  scout:{asset:'iron_sentinel.glb',id:'sentinel',tint:'#78cbb7'},
  bulwark:{asset:'azure_champion.glb',id:'azure',tint:'#dd9d66'}
 };
+const rigData=new WeakMap();
 // Update cloned skin bind inverses before measuring: Box3 alone does not do this.
-export function characterMount(model, actorScale = 1) {
+function characterBounds(model) {
  model.updateMatrixWorld(true);
  model.traverse(n=>{if(n.isSkinnedMesh){n.skeleton.update();n.computeBoundingBox();}});
- const bounds=new THREE.Box3().setFromObject(model,true),height=bounds.max.y-bounds.min.y;
+ return new THREE.Box3().setFromObject(model,true);
+}
+export function characterMount(model, actorScale = 1, bounds=characterBounds(model)) {
+ const height=bounds.max.y-bounds.min.y;
  if(!Number.isFinite(height)||height<=0)throw Error('Invalid character bounds');
  const mount=new THREE.Group();mount.scale.setScalar(1.95/height*actorScale);
  mount.rotation.y=Math.PI;mount.add(model);model.position.y-=bounds.min.y;
@@ -33,7 +37,18 @@ export function dressWarrior(actor,canvas,requestedHero){
   // Validate before touching the visible fallback or moving its attachments.
   const sockets=['mixamorigSpine','mixamorigRightHand','mixamorigLeftHand'];
   for(const bone of sockets)if(!g.scene.getObjectByName(bone))throw Error('Missing character socket: '+bone);
-  const model=g.scene,mount=characterMount(model,actor.scale);mounted=mount;
+  const model=g.scene;
+  let data=rigData.get(g.animations);
+  if(!data){
+   const clips=g.animations.map(original=>{
+    const clip=inPlaceClip(original),name=clip.name.split('|').pop();
+    const alternate=new THREE.AnimationClip(clip.name+':alternate',clip.duration,clip.tracks,clip.blendMode);
+    return {name,clip,alternate};
+   });
+   data={clips,bounds:characterBounds(model)};
+   rigData.set(g.animations,data);
+  }
+  const mount=characterMount(model,actor.scale,data.bounds);mounted=mount;
   model.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;n.frustumCulled=false;const convert=m=>{
    if(detailed)return heroMaterial(m,hero.id);
    const surface=m.clone();surface.color.multiply(new THREE.Color(enemy.tint));
@@ -43,7 +58,10 @@ export function dressWarrior(actor,canvas,requestedHero){
   const torso=model.getObjectByName(sockets[0]);if(torso)torso.attach(actor.cape);
   actor.rig.visible=false;
   const mixer=new THREE.AnimationMixer(model),actions={};
-  for(const original of g.animations){const clip=inPlaceClip(original),name=clip.name.split('|').pop();actions[name]=mixer.clipAction(clip);const alternate=clip.clone();alternate.name+=':alternate';actions[name+':alternate']=mixer.clipAction(alternate);}
+  for(const {name,clip,alternate} of data.clips){
+   actions[name]=mixer.clipAction(clip);
+   actions[name+':alternate']=mixer.clipAction(alternate);
+  }
   {
    const names=soloAnimationAliases(detailed?hero.id:enemy.id);
    for(const [alias,name] of Object.entries(names)){const real=actions[name]?name:alias==='Jog'||alias==='Run'?'walk_loop':names.Idle;actions[alias]=actions[real];actions[alias+':alternate']=actions[real+':alternate'];}

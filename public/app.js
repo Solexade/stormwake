@@ -11,7 +11,7 @@ const soundtrack=new AdventureAudio();
 import {MovementPreview} from './movement-preview.js';
 const movementPreview=new MovementPreview();
 import {WORLD,LAND,BRIDGES,HOME,SHRINE,BOSS,OBSTACLES,RELICS,landAt} from './game.js';
-import {createWorld} from './scene3d.js';
+import {initialQuality} from './scene/quality.js';
 import {createAdventureUI} from './adventure.js';
 import {WEAPONS} from './catalog.js';
 import {ATTACKS,COMBO_HITS,POWERUPS,interactionFor,weaponAttack} from './combat.js';
@@ -26,7 +26,7 @@ function pressAction(action){
  }
 }
 const $=id=>document.getElementById(id), canvas=$('world');
-let world3d=null;
+let world3d=null,preparingWorld=null,startingRun=false,launchAt=null;
 let profile=null,community={salvage:0,target:1500},leaders=[],run=null,playing=false,lastEvent=0,lastStatus='',lastTime=0,viewW=900,viewH=650,dpr=1;
 let camera={x:1150,y:1070},zoom=.67,networkBusy=false,networkErrors=0,mouse={x:0,y:0,active:false},keys=new Set(),touch={dx:0,dy:0,attack:false,dodge:false,storm:false,interact:false};
 let aim=-Math.PI/2,playerVisual={...HOME},enemyVisual=new Map(),audio=null,sound=false,toastTimer,messageTimer,ravenTimer,dialogKind='',lastFrame=performance.now();
@@ -47,12 +47,32 @@ function syncWeapons(){const list=run?.status==='active'?(run.inventory||foundWe
 function applyState(data){profile=data.player;document.dispatchEvent(new CustomEvent('stormwake:profile',{detail:profile}));chapterBoard();$('weaponSelect').value=profile.gear?.weapon||'axe';syncWeapons();community=data.world;leaders=data.leaderboard;$('playerName').textContent=profile.name;$('bankValue').textContent=profile.salvage;$('communityValue').textContent=community.salvage.toLocaleString();$('communityFill').style.width=Math.min(100,community.salvage/community.target*100)+'%';$('contributeBtn').disabled=profile.salvage<50;$('communityNote').textContent=community.salvage>=community.target?'The beacon is restored. Your harbour now shines.':'Shared progress on this game server.';}
 async function refresh(){const data=await api('state');applyState(data);return data;}
 function setPlaying(value){playing=value;document.body.classList.toggle('expedition-mode',value);$('hero').classList.toggle('hidden',value);$('hud').classList.toggle('hidden',!value);$('touchControls').classList.toggle('hidden',!value||!touchEnabled);$('bossBar').classList.add('hidden');$('interaction').classList.add('hidden');$('comboBtn').classList.add('hidden');$('harbourNav').textContent=value?'Return to harbour':'The harbour';if(value){actionIds={};lockedTarget=null;playerVisual={x:run.player.x,y:run.player.y};camera={x:run.player.x,y:run.player.y};lastEvent=run.eventId;lastStatus='active';enemyVisual.clear();canvas.focus({preventScroll:true});}else{camera={x:1150,y:1070};$('areaLabel').textContent='THE LAST HARBOUR';$('areaSub').textContent='A light in the storm';$('startBtn').innerHTML='Begin survival <span>↗</span>';updateObjectives();}}
-async function begin(){if(networkBusy)return;if(!profile){toast('Connecting to the game server. Please try again.');return;}if(!profile.usernameCreated){showUsername(true);return;}if(!sound)enableSound();try{$('startBtn').disabled=true;const data=await api('start',{arena:arenaPicker.selected});run=data.run;syncWeapons();movementPreview.sync(run,performance.now());setPlaying(true);raven('Land three hits to charge Stormbreaker, then tap Combo. Tap nearby prompts to open caches and shops.');message(run.mode==='survival'?'SURVIVAL · HOLD THE LINE':'CHAPTER '+(run.chapter||1)+' · '+chapterNames[(run.chapter||1)-1]);}catch(e){toast(e.message);}finally{$('startBtn').disabled=false;}}
+async function begin(){
+ if(networkBusy||startingRun)return;
+ if(!profile){toast('Connecting to the game server. Please try again.');return;}
+ if(!profile.usernameCreated){showUsername(true);return;}
+ startingRun=true;
+ launchAt=performance.now();
+ const buttons=[$('startBtn'),$('chapterDeploy')];
+ const labels=buttons.map(button=>button.innerHTML);
+ const arena=arenaPicker.selected;
+ buttons.forEach(button=>{button.disabled=true;button.textContent='Loading arena…';});
+ if(!sound)enableSound();
+ try{
+  await prepareWorld();
+  // The server starts the wave after the renderer is ready for input.
+  const data=await api('start',{arena});
+  run=data.run;syncWeapons();movementPreview.sync(run,performance.now());setPlaying(true);
+  raven('Land three hits to charge Stormbreaker, then tap Combo. Tap nearby prompts to open caches and shops.');
+  message(run.mode==='survival'?'SURVIVAL · HOLD THE LINE':'CHAPTER '+(run.chapter||1)+' · '+chapterNames[(run.chapter||1)-1]);
+ }catch(error){launchAt=null;toast(error.message);}
+ finally{buttons.forEach((button,i)=>{button.disabled=false;button.innerHTML=labels[i];});startingRun=false;}
+}
 const chapterNames=REGIONS.map(r=>r.name);
 let introSeen=false;
 function chapterBoard(){document.querySelectorAll('[data-chapter]').forEach(card=>{card.classList.remove('chapter-current');card.querySelector('small').textContent='OPEN DISTRICT · WALK OR SAIL';});const best=profile?.gear?.survival;if(best)$('ravenLine').textContent='Personal best: '+best.bestKills+' bots · wave '+best.bestWave+' · '+best.bestSeconds+' seconds.';}
 
-async function launchStory(){if(!profile?.usernameCreated){showUsername(true);return;}if(introSeen||run?.status==='active'){begin();return;}await prologue();introSeen=true;begin();}
+async function launchStory(){if(!profile)await initialState;if(!profile){toast('The game server is unavailable. Try again when it reconnects.');return;}if(!profile.usernameCreated){showUsername(true);return;}if(introSeen||run?.status==='active'){begin();return;}if($('storyIntro').open)return;import('./scene3d.js').catch(()=>{});await prologue();introSeen=true;begin();}
 function prologue(){return new Promise(resolve=>{
  const frames=[['Before the fracture','The Heartbeat held the Shattered Isles together. Our heroes guarded a world of timber, iron and tides.'],['Something crossed the storm','Rogue machines arrived from an age that had not happened yet. They came to steal the Heartbeat before their own future could be written.'],['The harbour fell first','Scouts marked the shore. Siege machines followed. The survivors called for the Awakened.'],['We hold the line','The machines will not stop coming. Explore the city, find supplies and survive as many waves as you can.']];
  const supported='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
@@ -152,26 +172,56 @@ $('weaponSelect').onchange=async()=>{try{const data=await api('weapon/equip',{we
 $('orbitLeft').onclick=()=>{orbit-=Math.PI/4;world3d?.setOrbit(orbit);};$('orbitRight').onclick=()=>{orbit+=Math.PI/4;world3d?.setOrbit(orbit);};
 $('touchToggle').onclick=()=>{touchEnabled=!touchEnabled;$('touchControls').classList.toggle('hidden',!playing||!touchEnabled);$('touchToggle').setAttribute('aria-pressed',String(touchEnabled));resetInput();};
 $('bloodToggle').onclick=()=>{bloodFX=!bloodFX;$('bloodToggle').textContent='Blood FX: '+(bloodFX?'on':'off');$('bloodToggle').setAttribute('aria-pressed',String(bloodFX));};
-// The server game remains authoritative; only rendering and mouse projection change.
-try {
- world3d=createWorld(canvas);
- $('sceneStatus').classList.add('hidden');
-} catch(error) {
- console.error('3D initialization:',error);
- $('sceneStatus').textContent='3D could not start. Enable hardware acceleration or try a WebGL 2 browser.';
- $('startBtn').disabled=true;
+// The arena picker and saved profile don't depend on WebGL or 3D assets.
+let cameraMode='follow',detail=initialQuality(isTouch);
+$('qualityBtn').textContent=detail[0].toUpperCase()+detail.slice(1)+' detail';
+function prepareWorld(){
+ if(world3d)return Promise.resolve();
+ if(preparingWorld)return preparingWorld;
+ const status=$('sceneStatus');
+ status.textContent='Loading arena…';status.classList.remove('hidden');
+ preparingWorld=import('./scene3d.js').then(({createWorld})=>{
+  world3d=createWorld(canvas,detail);
+  world3d.setMode(cameraMode);world3d.setOrbit(orbit);
+  status.classList.add('hidden');
+ }).catch(error=>{
+  console.error('3D initialization:',error);
+  status.textContent='3D could not start. Try a WebGL 2 browser with hardware acceleration.';
+  throw Error(status.textContent);
+ }).finally(()=>{preparingWorld=null;});
+ return preparingWorld;
 }
-let cameraMode='follow',detail=isTouch?'low':'high';
-try{const saved=localStorage.getItem('stormwake.graphics');if(['high','medium','low'].includes(saved))detail=saved;}catch{};
-world3d?.setQuality(detail);$('qualityBtn').textContent=detail[0].toUpperCase()+detail.slice(1)+' detail';
 $('cameraBtn').onclick=()=>{cameraMode=({follow:'tactical',tactical:'scenic',scenic:'follow'})[cameraMode];world3d?.setMode(cameraMode);$('cameraBtn').textContent=({follow:'Tactical view',tactical:'Scenic view',scenic:'Follow view'})[cameraMode];};
 $('qualityBtn').onclick=()=>{detail=({high:'medium',medium:'low',low:'high'})[detail]||'low';try{localStorage.setItem('stormwake.graphics',detail);}catch{};world3d?.setQuality(detail);$('qualityBtn').textContent=detail[0].toUpperCase()+detail.slice(1)+' detail';};
 canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();resetInput();$('sceneStatus').textContent='Graphics paused. Reload this page to restore the 3D scene.';$('sceneStatus').classList.remove('hidden');});
 let performanceStart=performance.now(),performanceFrames=0;
-function render(now){const dt=Math.max(0,Math.min(.15,(now-lastFrame)/1000));lastFrame=now;let displayRun=run;if(playing&&run){const pose=movementPreview.step($('modal').open||run.travel?{}:input(false),dt,now);if(pose){pose.armedAnticipation=strikeAnticipation(pose,strikeCue,now);displayRun={...run,player:pose};}}soundtrack.update(displayRun?.player,playing&&!run?.paused&&!$('modal').open,run?.boss?.awake&&!run?.bossDead,document.hidden,run);if(world3d&&!document.hidden)world3d.draw(now/1000,dt,displayRun,playing,community,{lockedTarget,bloodFX,reducedMotion});performanceFrames++;if(now-performanceStart>=1000){canvas.dataset.fps=String(Math.round(performanceFrames*1000/(now-performanceStart)));if(world3d){const info=world3d.getInfo();canvas.dataset.renderer='three-webgl2';canvas.dataset.drawCalls=String(info.drawCalls);canvas.dataset.triangles=String(info.triangles);}performanceStart=now;performanceFrames=0;}requestAnimationFrame(render);}
+function render(now){
+ const dt=Math.max(0,Math.min(.15,(now-lastFrame)/1000));lastFrame=now;
+ let displayRun=run;
+ if(playing&&run){
+  const pose=movementPreview.step($('modal').open||run.travel?{}:input(false),dt,now);
+  if(pose){pose.armedAnticipation=strikeAnticipation(pose,strikeCue,now);displayRun={...run,player:pose};}
+ }
+ soundtrack.update(displayRun?.player,playing&&!run?.paused&&!$('modal').open,run?.boss?.awake&&!run?.bossDead,document.hidden,run);
+ if(world3d&&playing&&!document.hidden){
+  world3d.draw(now/1000,dt,displayRun,playing,community,{lockedTarget,bloodFX,reducedMotion});
+  if(launchAt!==null){canvas.dataset.launchMs=String(Math.round(performance.now()-launchAt));launchAt=null;}
+  performanceFrames++;
+  if(now-performanceStart>=1000){
+   const info=world3d.getInfo();
+   canvas.dataset.fps=String(Math.round(performanceFrames*1000/(now-performanceStart)));
+   canvas.dataset.renderer='three-webgl2';
+   canvas.dataset.drawCalls=String(info.drawCalls);
+   canvas.dataset.triangles=String(info.triangles);
+   performanceStart=now;performanceFrames=0;
+  }
+ }else{performanceStart=now;performanceFrames=0;}
+ requestAnimationFrame(render);
+}
 requestAnimationFrame(render);
 async function init(){try{const data=await refresh();$('connection').textContent='Server connected';if(data.run?.status==='active'){run=data.run;$('startBtn').innerHTML='Resume run <span>↗</span>';raven('You left a story unfinished. Your saved run is still waiting.');}if(!profile.usernameCreated)showUsername(true);}catch(e){$('connection').textContent='Server unavailable';toast(e.message);}}
-init();setInterval(()=>{if(!playing&&!document.hidden)refresh().catch(()=>{});},15000);
+const initialState=init();
+setInterval(()=>{if(!playing&&!startingRun&&!document.hidden)refresh().catch(()=>{});},15000);
 
 $('recordsBtn').onclick=async()=>{try{const data=await api('history');modal('<span class="modal-eyebrow">YOUR SAVED ADVENTURE</span><h2>Voyager records</h2><p>Expeditions, purchases, equipment changes, contributions are saved to your profile.</p>'+ (data.records.length?data.records.map(r=>'<article class="choice"><strong>'+escape(r.kind.replaceAll('-',' '))+'</strong><span>'+escape(new Date(Number(r.created)).toLocaleString())+'</span><span>'+escape(Object.entries(r.payload).filter(([k])=>k!=='runId').map(([k,v])=>k+': '+v).join(' · '))+'</span></article>').join(''):'<p>No recorded activity yet. Begin an expedition to start your story.</p>'));}catch(e){toast(e.message);}};
 
