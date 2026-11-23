@@ -1,30 +1,82 @@
 import {arenaFor} from './arenas.js';
 import {walkable} from './world.js';
+import {connectedEnemySpawn} from './pursuit.js';
+
+const MAX_ACTIVE=24;
+const CLEAR_DELAY=4;
+const REINFORCEMENT_DELAY=22;
+const REJOIN_DISTANCE=1050;
+
 export function startSurvival(s,arenaId){
- const arena=arenaFor(arenaId);s.arenaId=arena.id;s.arenaName=arena.name;s.home={x:arena.x,y:arena.y};Object.assign(s.player,s.home);
- s.mode='survival';s.survivalVersion=1;s.wave=0;s.nextWave=2;s.enemies=[];
+ const arena=arenaFor(arenaId);
+ s.arenaId=arena.id;s.arenaName=arena.name;s.home={x:arena.x,y:arena.y};Object.assign(s.player,s.home);
+ s.mode='survival';s.survivalVersion=2;s.wave=0;s.nextWave=2;s.reinforceAt=2;s.enemies=[];
  s.boss.hp=0;s.boss.awake=false;s.bossDead=false;s.relicReady=false;
  return s;
 }
+
+function spawnPoint(s,slot){
+ const p=s.player,offset=(slot*.618+s.wave*.173)*Math.PI*2;
+ // Try a wide perimeter first, then shorter distances when the player is on a narrow route.
+ for(const radius of [330,275,400,220,175,460]){
+  for(let i=0;i<20;i++){
+   const angle=offset+i*Math.PI*2/20;
+   const point={x:p.x+Math.cos(angle)*radius,y:p.y+Math.sin(angle)*radius};
+   if(!walkable(point.x,point.y,22))continue;
+   if(s.enemies.some(e=>(e.hp>0||e.death>0)&&Math.hypot(e.x-point.x,e.y-point.y)<54))continue;
+   if(connectedEnemySpawn(point,p))return point;
+  }
+ }
+ return null;
+}
+
+function reposition(enemy,point){
+ Object.assign(enemy,point,{homeX:point.x,homeY:point.y,cd:1.6,wind:0,swing:0,vx:0,vy:0,stalled:0,pursuitProbe:null,arrival:.9});
+}
+
+function rallyStragglers(s){
+ if(s.elapsed<(s.rallyAt||0))return;
+ const candidate=s.enemies.find(e=>e.hp>0&&(
+  Math.hypot(e.x-s.player.x,e.y-s.player.y)>REJOIN_DISTANCE||(e.stalled||0)>=4
+ ));
+ if(!candidate)return;
+ const point=spawnPoint(s,candidate.id);
+ s.rallyAt=s.elapsed+(point ? .65 : 1.5);
+ if(point)reposition(candidate,point);
+}
+
 export function survivalStep(s,dt,emit){
  if(s.mode!=='survival'||s.status!=='active')return;
- if(s.enemies.some(e=>e.hp>0))return;
- s.nextWave-=dt;if(s.nextWave>0)return;
- const wave=s.wave+1,count=Math.min(24,4+wave*2),enemies=[];
- for(let i=0;i<count;i++){
-  let point=null;
-  for(let j=0;j<96;j++){
-   const a=(i/count+j*.618)*Math.PI*2,r=260+(j%5)*30,x=s.player.x+Math.cos(a)*r,y=s.player.y+Math.sin(a)*r;
-   if(walkable(x,y,22)&&!enemies.some(e=>Math.hypot(e.x-x,e.y-y)<45)){point={x,y};break;}
-  }
+ // Old in-progress saves pick up the new reinforcement timer in place.
+ s.reinforceAt??=s.elapsed+REINFORCEMENT_DELAY;
+ rallyStragglers(s);
+ const active=s.enemies.filter(e=>e.hp>0).length;
+ if(!active)s.nextWave-=dt;
+ const due=active?s.elapsed>=s.reinforceAt:s.nextWave<=0;
+ if(!due||active>=MAX_ACTIVE)return;
+ const wave=s.wave+1,capacity=MAX_ACTIVE-active;
+ const count=Math.min(capacity,4+wave*2);
+ const spawns=[];
+ s.enemies=s.enemies.filter(e=>e.hp>0||e.death>0);
+ for(let id=0;id<MAX_ACTIVE&&spawns.length<count;id++){
+  if(s.enemies.some(e=>e.id===id))continue;
+  const point=spawnPoint(s,id);
   if(!point)continue;
-  // Stable slots bound renderer memory; each slot has a consistent bot type.
-  const type=i%5===4?'brute':i%3===2?'archer':'raider',base=type==='brute'?130:type==='archer'?64:80,hp=Math.round(base*(1+Math.min(2,(wave-1)*.09)));
-  enemies.push({id:i,type,...point,homeX:point.x,homeY:point.y,hp,maxHp:hp,cd:1.5+i*.08,wind:0,angle:0,flash:0,stagger:0,swing:0,death:0,vx:0,vy:0});
+  const type=id%5===4?'brute':id%3===2?'archer':'raider';
+  const base=type==='brute'?130:type==='archer'?64:80;
+  const hp=Math.round(base*(1+Math.min(2,(wave-1)*.09)));
+  const enemy={id,type,hp,maxHp:hp,angle:0,flash:0,stagger:0,death:0};
+  reposition(enemy,point);s.enemies.push(enemy);spawns.push(enemy);
  }
- if(!enemies.length){s.nextWave=1;return;}
- s.wave=wave;s.enemies=enemies;s.nextWave=4;emit(s,'wave',{wave,count:enemies.length});
+ if(!spawns.length){
+  if(active)s.reinforceAt=s.elapsed+1;
+  else s.nextWave=1;
+  return;
+ }
+ s.wave=wave;s.nextWave=CLEAR_DELAY;s.reinforceAt=s.elapsed+REINFORCEMENT_DELAY;
+ emit(s,'wave',{wave,count:spawns.length});
 }
+
 export function bankSurvival(gear,s){
  if(s.mode!=='survival'||s.status!=='dead')return gear;
  const previous=gear.survival||{};

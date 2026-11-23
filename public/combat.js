@@ -1,3 +1,4 @@
+import {clearEnemyRoute,pursueEnemy} from './pursuit.js';
 import {startSurvival,survivalStep} from './survival.js';
 import {regionFor,CAMPS,foundWeapons} from './voyage-data.js';
 import {explorationPrompt,explore} from './exploration.js';
@@ -90,8 +91,8 @@ export function retireGun(s){
 }
 export function tick(s,dt,now=Date.now()){
  retireGun(s);
- if(s.status!=='active')return;dt=clamp(dt,0,.06);const p=s.player;
- if(s.travel&&!s.paused){s.travel.remaining-=dt;s.player.vx=s.player.vy=0;s.input={};s.commands={};s.held={};if(s.travel.remaining<=0){Object.assign(s.player,s.travel.to,{vx:0,vy:0,invulnerable:1});s.travel=null;s.lastInputAt=now;event(s,'arrived',{text:'Landfall · follow the shrine marker'});}return;}
+ if(s.status!=='active')return;dt=clamp(dt,0,.06);if(!dt)return;const p=s.player,survival=s.mode==='survival';
+ if(s.travel&&!s.paused){s.travel.remaining-=dt;s.player.vx=s.player.vy=0;s.input={};s.commands={};s.held={};if(s.travel.remaining<=0){Object.assign(s.player,s.travel.to,{vx:0,vy:0,invulnerable:1});s.travel=null;s.lastInputAt=now;event(s,'arrived',{text:s.mode==='survival'?'Landfall · machines are tracking you':'Landfall · follow the shrine marker'});}return;}
  if(s.inSafehouse||s.paused){p.vx=p.vy=0;s.input={};s.commands={};s.held={};return;}
  p.powerTime=Math.max(0,(p.powerTime||0)-dt);if(!p.powerTime)p.powerup=null;p.riposteWindow=Math.max(0,(p.riposteWindow||0)-dt);
  s.elapsed+=dt;s.sequence++;const stale=now-s.lastInputAt>700,input=stale?{}:s.input;
@@ -123,11 +124,36 @@ export function tick(s,dt,now=Date.now()){
  if(input.interact&&!s.chest&&distance(p,{x:580,y:720})<95){s.chest=true;s.salvage+=40;p.hp=Math.min(p.maxHp,p.hp+45);effect(s,'heal',p.x,p.y,.8);event(s,'chest');}
  if(s.relic&&distance(p,s.boss)<410&&!s.boss.awake){s.boss.awake=true;event(s,'boss-awake');}
  for(const e of [...s.enemies,s.boss]){e.flash=Math.max(0,e.flash-dt);e.stagger=Math.max(0,e.stagger-dt);e.swing=Math.max(0,e.swing-dt);e.death=Math.max(0,e.death-dt);e.vx=e.vy=0;}
- for(const e of s.enemies){if(e.hp<=0||e.stagger>0)continue;e.cd-=dt;const oldX=e.x,oldY=e.y;
+ for(const e of s.enemies){if(e.hp<=0||e.stagger>0)continue;e.cd-=dt;
+  if(e.arrival>0){e.arrival=Math.max(0,e.arrival-dt);continue;}const oldX=e.x,oldY=e.y;
   if(s.mode!=='survival'&&safeArea(p)){e.wind=0;if(Math.hypot(e.homeX-e.x,e.homeY-e.y)>8)chase(e,{x:e.homeX,y:e.homeY},95,dt);continue;}
   const d=distance(p,e);
-  if(e.wind>0){e.wind-=dt;if(e.wind<=0){e.swing=.3;if(e.type==='archer')s.shots.push({x:e.x,y:e.y,vx:Math.cos(e.angle)*335,vy:Math.sin(e.angle)*335,life:2.6});else {if(e.type==='raider')move(e,Math.cos(e.angle)*24,Math.sin(e.angle)*24,18);if(distance(p,e)<(e.type==='brute'?120:78))hurt(s,e.type==='brute'?24:12,e.x,e.y,e);}e.cd=e.type==='brute'?1.8:e.type==='archer'?1.4:1.05;}}
-  else if(s.mode==='survival'||d<410){e.angle+=clamp(angleDifference(Math.atan2(p.y-e.y,p.x-e.x),e.angle),-dt*9,dt*9);const reach=e.type==='archer'?290:e.type==='brute'?92:61;if(e.type==='archer'&&d<150)move(e,-Math.cos(e.angle)*95*dt,-Math.sin(e.angle)*95*dt,18);else if(d>reach)chase(e,p,e.type==='brute'?80:125,dt);else if(e.cd<=0)e.wind=e.type==='brute'?.85:e.type==='archer'?.62:.48;}
+  if(e.wind>0){e.wind-=dt;if(e.wind<=0){e.swing=.3;if(e.type==='archer'){if(!survival||clearEnemyRoute(e,p,8))s.shots.push({x:e.x,y:e.y,vx:Math.cos(e.angle)*335,vy:Math.sin(e.angle)*335,life:2.6});}else {if(e.type==='raider')move(e,Math.cos(e.angle)*24,Math.sin(e.angle)*24,18);if(distance(p,e)<(e.type==='brute'?120:78)&&(!survival||clearEnemyRoute(e,p,8)))hurt(s,e.type==='brute'?24:12,e.x,e.y,e);}e.cd=e.type==='brute'?1.8:e.type==='archer'?1.4:1.05;}}
+  else if(survival){
+   const reach=e.type==='archer'?290:e.type==='brute'?92:61;
+   const bearing=Math.atan2(p.y-e.y,p.x-e.x);
+   const direct=d<470&&clearEnemyRoute(e,p);
+   const attackLane=d<=reach&&(direct||clearEnemyRoute(e,p,8));
+   if(attackLane){
+    e.stalled=0;e.pursuitProbe=null;
+    e.angle+=clamp(angleDifference(bearing,e.angle),-dt*9,dt*9);
+    if(e.cd<=0&&Math.abs(angleDifference(bearing,e.angle))<.28){
+     e.wind=e.type==='brute'?.85:e.type==='archer'?.62:.48;
+    }
+   }else if(d<=1050){
+    const moved=pursueEnemy(e,p,e.type==='brute'?85:130,dt,direct);
+    if(moved>.12){
+     const heading=Math.atan2(e.y-oldY,e.x-oldX);
+     e.angle+=clamp(angleDifference(heading,e.angle),-dt*9,dt*9);
+    }
+    e.pursuitProbe??={x:oldX,y:oldY,time:s.elapsed};
+    if(s.elapsed-e.pursuitProbe.time>=2){
+     e.stalled=distance(e,e.pursuitProbe)<45?(e.stalled||0)+2:0;
+     e.pursuitProbe={x:e.x,y:e.y,time:s.elapsed};
+    }
+   }
+  }
+  else if(d<410){e.angle+=clamp(angleDifference(Math.atan2(p.y-e.y,p.x-e.x),e.angle),-dt*9,dt*9);const reach=e.type==='archer'?290:e.type==='brute'?92:61;if(e.type==='archer'&&d<150)move(e,-Math.cos(e.angle)*95*dt,-Math.sin(e.angle)*95*dt,18);else if(d>reach)chase(e,p,e.type==='brute'?80:125,dt);else if(e.cd<=0)e.wind=e.type==='brute'?.85:e.type==='archer'?.62:.48;}
   e.vx=(e.x-oldX)/dt;e.vy=(e.y-oldY)/dt;
  }
  // Keep hostile bodies separated instead of stacking in a single point.

@@ -1,6 +1,6 @@
 import {EXTRA_LAND,EXTRA_BRIDGES,HOMES} from './voyage-data.js';
 // The same world definitions are used by the renderer and authoritative server.
-export const WORLD = { width: 5300, height: 2400 };
+export const WORLD = { width: 6000, height: 3000 };
 export const LAND = [
   [[245,1210],[380,1080],[685,1070],[890,1170],[985,1420],[860,1650],[370,1700],[220,1510]],
   [[650,890],[790,630],[1080,520],[1440,610],[1610,850],[1530,1160],[1300,1360],[960,1320],[740,1170]],

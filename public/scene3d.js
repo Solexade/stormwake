@@ -41,7 +41,12 @@ export function createWorld(canvas){
  // Skaal has flapping wings and follows the shoulder rather than a flat icon.
  const raven=new THREE.Group();scene.add(raven);ball(mats.darkstone,0,0,0,.12,.09,.24,raven);ball(mats.darkstone,0,.08,-.19,.08,.085,.10,raven);const beak=mesh(new THREE.ConeGeometry(.035,.15,6),mats.gold,0,.06,-.32,raven);beak.rotation.x=-Math.PI/2;
  const wings=[];for(const side of [-1,1]){const pivot=new THREE.Group();raven.add(pivot);const wing=box(mats.darkstone,side*.27,0,.02,.5,.025,.22,pivot);wing.rotation.y=side*.25;wings.push(pivot);}
+ const arrivals=[];
  const redMat=new THREE.MeshBasicMaterial({color:'#ef7453',transparent:true,opacity:.3,side:THREE.DoubleSide,depthWrite:false});const tellGeo=new THREE.RingGeometry(.87,1,48);const tells=[];for(let i=0;i<12;i++){const m=mesh(tellGeo,redMat.clone());m.rotation.x=-Math.PI/2;m.castShadow=false;m.receiveShadow=false;m.visible=false;tells.push(m);}
+ for(let i=0;i<24;i++){
+  const marker=mesh(tellGeo,new THREE.MeshBasicMaterial({color:'#97e7ef',transparent:true,side:THREE.DoubleSide,depthWrite:false}));
+  marker.rotation.x=-Math.PI/2;marker.visible=false;marker.castShadow=false;arrivals.push(marker);
+ }
  const stormRing=mesh(new THREE.TorusGeometry(1,.025,5,64),mats.glow);stormRing.rotation.x=Math.PI/2;stormRing.visible=false;
  const trail=mesh(new THREE.TorusGeometry(.9,.035,5,28,Math.PI*1.25),new THREE.MeshBasicMaterial({color:'#ffdf9a',transparent:true,opacity:.65}));trail.rotation.x=-Math.PI/2;trail.visible=false;
  const targetRune=mesh(new THREE.TorusGeometry(1.1,.017,5,48),mats.glow);targetRune.rotation.x=Math.PI/2;
@@ -82,8 +87,16 @@ export function createWorld(canvas){
   sky.position.copy(camera.position);
   sun.position.set(px-8,22,pz+10);sun.target.position.set(px,0,pz-5);
   raven.position.set(px+Math.cos(t*.75)*1.15,2.5+Math.sin(t*1.3)*.13,pz-.45+Math.sin(t*.75)*.6);raven.rotation.y=-t*.75;wings.forEach((p,i)=>p.rotation.z=Math.sin(t*11)*.45*(i?1:-1));
-  tells.forEach(m=>m.visible=false);arrows.forEach(a=>a.visible=false);stormRing.visible=false;trail.visible=false;targetRune.visible=playing&&run?.mode!=='survival';
+  tells.forEach(m=>m.visible=false);arrivals.forEach(m=>m.visible=false);arrows.forEach(a=>a.visible=false);stormRing.visible=false;trail.visible=false;targetRune.visible=playing&&run?.mode!=='survival';
   if(playing&&run){let j=0;for(const e of run.enemies){if(e.hp>0&&e.wind>0&&e.type!=='archer'&&j<tells.length){const m=tells[j++];m.visible=true;m.position.set(e.x*S,.24,e.y*S);m.scale.setScalar((e.type==='brute'?120:76)*S);m.material.opacity=.3+warningFor(e).progress*.4;}}
+   let arriving=0;
+   for(const enemy of run.enemies){
+    if(enemy.hp<=0||!(enemy.arrival>0)||arriving>=arrivals.length)continue;
+    const ring=arrivals[arriving++];ring.visible=true;
+    ring.position.set(enemy.x*S,.15,enemy.y*S);
+    ring.scale.setScalar(.66+(1-enemy.arrival/.9)*.78);
+    ring.material.opacity=.3+enemy.arrival*.48;
+   }
    const b=run.boss;if(b.hp>0&&b.wind>0){const m=tells[11];m.visible=true;m.position.set(b.targetX*S,.26,b.targetY*S);m.scale.setScalar(b.radius*S);m.material.opacity=.45;}
    for(const f of run.effects){if(f.type==='storm'||f.type==='slam'){stormRing.visible=true;stormRing.position.set(f.x*S,.3,f.y*S);stormRing.scale.setScalar(Math.max(.05,(f.type==='storm'?225:f.radius)*S*(1-f.life/f.maxLife)));}}
    if(p.slash>0){trail.visible=true;trail.position.set(px,1.10,pz);trail.rotation.z=-p.angle;trail.scale.setScalar(p.action==='finisher'?1.7:p.action==='heavy'?1.3:1);}
@@ -125,5 +138,5 @@ export function createWorld(canvas){
     const measured=meter.read();canvas.dataset.frameP95Ms=measured.frame.p95Ms.toFixed(2);canvas.dataset.cpuP95Ms=measured.cpu.p95Ms.toFixed(2);canvas.dataset.frameSamples=String(measured.frame.samples);canvas.dataset.metricsAt=String(performance.now());canvas.dataset.graphicsQuality=quality;
   }
  }
- return {draw,aimAt,setOrbit(value){orbit=value;},setMode(value){mode=value;},setQuality(value){quality=['low','medium','high'].includes(value)?value:'high';harbourAssets.setQuality(quality);const preset=qualityPreset(quality);renderer.setPixelRatio(Math.min(devicePixelRatio,preset.pixelRatio));renderer.shadowMap.enabled=preset.shadows;grass.visible=preset.foliage;harbourPlants.visible=preset.foliage;meter.reset();resize();},getInfo(){return {engine:'Three.js',revision:THREE.REVISION,quality,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,...meter.read()};}};
+ return {draw,aimAt,setOrbit(value){orbit=value;},setMode(value){mode=value;},setQuality(value){quality=['low','medium','high'].includes(value)?value:'high';harbourAssets.setQuality(quality);waterMaterial.uniforms.detail.value=quality==='low'?0:1;const preset=qualityPreset(quality);renderer.setPixelRatio(Math.min(devicePixelRatio,preset.pixelRatio));renderer.shadowMap.enabled=preset.shadows;grass.visible=preset.foliage;harbourPlants.visible=preset.foliage;meter.reset();resize();},getInfo(){return {engine:'Three.js',revision:THREE.REVISION,quality,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,...meter.read()};}};
 }

@@ -29,3 +29,11 @@ test('rank thresholds unlock two cosmetic finishes without changing combat stats
 test('survival mainland joins harbour, city, Riverhold and Emerald Reach on foot',()=>{
  for(const target of [{x:1850,y:1760},...REGIONS.slice(1).map(r=>r.home)])assert.ok(reachable(REGIONS[0].home,target),JSON.stringify(target));
 });
+
+test('expanded district trails connect to new play space on foot',()=>{
+ const targets=[{x:490,y:2530},{x:2280,y:2520},{x:3530,y:2315},{x:5540,y:2260},{x:5310,y:675}];
+ for(const target of targets){
+  assert.ok(walkable(target.x,target.y,22));
+  assert.ok(reachable(REGIONS[0].home,target),JSON.stringify(target));
+ }
+});
