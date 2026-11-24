@@ -1,19 +1,13 @@
-export function initialQuality(coarse=false) {
- try { const saved=globalThis.localStorage?.getItem('stormwake.graphics');if(['low','medium','high'].includes(saved))return saved; } catch {}
- return coarse ? 'low' : 'medium';
+export function initialQuality(storage) {
+ try { const saved=(storage??globalThis.localStorage)?.getItem('stormwake.graphics');if(['low','medium','high'].includes(saved))return saved; } catch {}
+ return 'high';
 }
-// Mobile starts with the lighter preset; players can still select High.
 export const QUALITY = Object.freeze({
-  high: Object.freeze({pixelRatio: 1.5, shadows: true, sceneryRange:38, bloom: true, foliage: true, shore: true}),
-  medium: Object.freeze({pixelRatio: 1, shadows: false, sceneryRange:20, bloom: false, foliage: true, shore: true}),
-  low: Object.freeze({pixelRatio: .85, shadows: false, sceneryRange:0, bloom: false, foliage: false, shore: false}),
+  high: Object.freeze({pixelRatio: 1.6, shadows: true, bloom: true, foliage: true, shore: true}),
+  medium: Object.freeze({pixelRatio: 1.25, shadows: true, bloom: false, foliage: true, shore: true}),
+  low: Object.freeze({pixelRatio: 1, shadows: false, bloom: false, foliage: false, shore: false}),
 });
 export function qualityPreset(name) { return QUALITY[name] || QUALITY.high; }
-
-export function adjustedPixelRatio(quality,ratio,{samples,medianMs}){
-  if(quality==='high'||samples<40||medianMs<35||ratio<=.65)return ratio;
-  return Math.max(.65,Math.round(ratio*.82*100)/100);
-}
 
 export function frameStatistics(samples) {
   const sorted = samples.filter(n => Number.isFinite(n) && n > 0).sort((a,b) => a-b);

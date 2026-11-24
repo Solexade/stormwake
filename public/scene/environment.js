@@ -16,7 +16,7 @@ import {mergeGeometries} from '../vendor/BufferGeometryUtils.js';
 import {loadGLB} from './assets.js';
 export function createEnvironment(renderer,scene,canvas,sky,quality){
  const sceneryVisibility=createSceneryVisibility();
- const harbourAssets=createHarbourAssets(scene,canvas,loadGLB,model=>sceneryVisibility.add(model),{stream:true,initial:quality}),replacementFallbacks=[];
+ const harbourAssets=createHarbourAssets(scene,canvas,loadGLB,model=>sceneryVisibility.add(model),quality),replacementFallbacks=[];
  const random=randomFactory(24681);let count=0;
  function texture(kind){const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d'),data=g.createImageData(256,256),r=randomFactory(kind==='grass'?18:kind==='wood'?73:91);const base=kind==='grass'?[67,79,56]:kind==='wood'?[87,65,44]:kind==='leather'?[89,62,42]:[114,116,110];
    for(let y=0;y<256;y++)for(let x=0;x<256;x++){const i=(y*256+x)*4;let n=(r()-.5)*38;if(kind==='wood')n+=Math.sin(x*.8+Math.sin(y*.02)*2)*11;if(kind==='leather')n+=Math.sin(x*2)*Math.cos(y*2)*5;for(let k=0;k<3;k++)data.data[i+k]=base[k]+n;data.data[i+3]=255;}g.putImageData(data,0,0);
@@ -117,17 +117,11 @@ export function createEnvironment(renderer,scene,canvas,sky,quality){
  }
  timberHouse(420,1240,1.05,-.15);timberHouse(660,1390,.95,.1,1);timberHouse(760,1580,.75,.35);
  HOMES.forEach((h,i)=>timberHouse(h.x,h.y,h.w/120,h.angle,i%2));
+ // Clones retain their occlusion state, but receive the completed local PBR maps.
+ materials.ready.then(()=>{for(const b of buildings)for(const [source,copy] of b.materials){for(const key of ['map','normalMap','roughnessMap','aoMap','bumpMap','bumpScale'])copy[key]=source[key];copy.color.copy(source.color);if(copy.normalScale&&source.normalScale)copy.normalScale.copy(source.normalScale);copy.needsUpdate=true;}});
  const shelfMaterial=new THREE.MeshStandardMaterial({color:'#a39777',roughness:.93,side:THREE.DoubleSide});
  const shelf=mesh(coastApronGeometry(),shelfMaterial);shelf.castShadow=false;
- terrain.onReady(()=>{
-  for(const [slot,source] of [['map',terrain.sand.colour],['normalMap',terrain.sand.normal],['roughnessMap',terrain.sand.rough]]){
-   if(shelfMaterial[slot]?.source===source?.source)continue;
-   shelfMaterial[slot]?.dispose();
-   if(!source){shelfMaterial[slot]=null;continue;}
-   const texture=source.clone();texture.repeat.set(1,1);texture.needsUpdate=true;shelfMaterial[slot]=texture;
-  }
-  shelfMaterial.normalScale.set(.35,.35);shelfMaterial.needsUpdate=true;
- });
+ terrain.ready.then(()=>{for(const [slot,source] of [['map',terrain.sand.colour],['normalMap',terrain.sand.normal],['roughnessMap',terrain.sand.rough]]){if(!source)continue;const texture=source.clone();texture.repeat.set(1,1);texture.needsUpdate=true;shelfMaterial[slot]=texture;}shelfMaterial.normalScale=new THREE.Vector2(.35,.35);shelfMaterial.needsUpdate=true;});
  const harbourPlants=createHarbourPlanting(scene);
  // Harbour jetty.
  for(let i=0;i<22;i++)box(mats.wood,(315+i*10)*S,.13,1445*S,.23,.14,1.25);
@@ -172,7 +166,7 @@ export function createEnvironment(renderer,scene,canvas,sky,quality){
  for(const [i,[x,z]] of trees.entries()){if(!landAt(x-35,z)||!landAt(x+35,z)||!landAt(x,z-40))continue;if([HOME,SHRINE,BOSS,{x:580,y:720}].some(p=>Math.hypot(p.x-x,p.y-z)<190))continue;if(i>1&&i<105&&z>1120&&x<870)continue;if(paths.some(p=>p.some(([a,b])=>Math.hypot(a-x,b-z)<95)))continue;if(x>1600&&x<5530&&z<890)continue;
   const h=3.8+random()*2.5;const oldTrunk=cylinder(mats.darkwood,x*S,h*.48,z*S,.025,.14,h*.96,scene,9);
   const crown=new THREE.Group();crown.position.set(x*S,0,z*S);scene.add(crown);
-  const branchRows=i<105?6:4;
+  const branchRows=i<105?9:6;
   for(let j=0;j<branchRows;j++){const y=h*(.22+j*.73/branchRows),length=h*.25*(1-j/10)*(i===0?(1+.16*Math.sin(j*2.3)):1);for(let k=0;k<5;k++){
    const angle=k*Math.PI*2/5+j*1.3,tip=new THREE.Vector3(Math.cos(angle)*length,y-.16,Math.sin(angle)*length);
    beam(new THREE.Vector3(0,y,0),tip,.014,mats.darkwood,crown);
@@ -297,5 +291,5 @@ export function createEnvironment(renderer,scene,canvas,sky,quality){
  }
  const warmPool=new THREE.PointLight('#ffcf92',2.2,7,2);warmPool.position.set(470*S,1.7,1280*S);scene.add(warmPool);
  const contactCanvas=document.createElement('canvas');contactCanvas.width=contactCanvas.height=64;const contactCtx=contactCanvas.getContext('2d'),contactGradient=contactCtx.createRadialGradient(32,32,2,32,32,32);contactGradient.addColorStop(0,'rgba(0,0,0,.45)');contactGradient.addColorStop(1,'rgba(0,0,0,0)');contactCtx.fillStyle=contactGradient;contactCtx.fillRect(0,0,64,64);const contactMaterial=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(contactCanvas),transparent:true,depthWrite:false,opacity:.65});
- return {sceneryVisibility,harbourAssets,mats,box,ball,cylinder,beam,mesh,form,batchStatic,boat,chest,crystal,shrineLight,beaconFlame,beaconLight,flames,waterMaterial,foliage,pennants,motes,buildings,grass,harbourPlants,contactMaterial,materials,terrain};
+ return {sceneryVisibility,harbourAssets,mats,box,ball,cylinder,beam,mesh,form,batchStatic,boat,chest,crystal,shrineLight,beaconFlame,beaconLight,flames,waterMaterial,foliage,pennants,motes,buildings,grass,harbourPlants,contactMaterial,materials};
 }

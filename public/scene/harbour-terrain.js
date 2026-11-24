@@ -42,34 +42,9 @@ export function createHarbourTerrain(renderer,source,coastMap,canvas){
   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',THREE.ShaderChunk.roughnessmap_fragment.replace('texelRoughness.g','mix(mix(texelRoughness.g,texture2D(forestRough,terrainWorld.xz*.55).r,forestWeight),texture2D(sandRough,terrainWorld.xz*.42).r,terrainSand)'));
  };
  material.customProgramCacheKey=()=> 'district-terrain-biomes-4';
- const loader=new THREE.TextureLoader();
- const sources=['sparse_grass','coast_sand_01','forrest_ground_01'];
- const stages=new Set(),surfaceDetail={};let pending=0,failures=0,quality='low',onReady=()=>{};
- const updateDetail=()=>{
-  const normal=quality==='high'?surfaceDetail.normalMap||null:null,rough=quality==='high'?surfaceDetail.roughnessMap||null:null;
-  if(material.normalMap===normal&&material.roughnessMap===rough)return;
-  material.normalMap=normal;material.roughnessMap=rough;material.needsUpdate=true;
- };
- function stage(name,kinds){
-  if(stages.has(name))return;
-  stages.add(name);pending++;canvas.dataset.harbourTerrain='loading';
-  Promise.all(sources.flatMap(id=>kinds.map(async kind=>{
-   const texture=await loader.loadAsync(ASSETS[`${id}_${kind}_1k.jpg`].url);
-   texture.colorSpace=kind==='diff'?THREE.SRGBColorSpace:THREE.NoColorSpace;
-   texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
-   texture.repeat.set(.42,.42);texture.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());
-   return {id,kind,texture};
-  }))).then(textures=>{
-   for(const {id,kind,texture} of textures){
-    if(id==='sparse_grass'){
-     if(kind==='diff')material.map=texture;else surfaceDetail[kind==='nor_gl'?'normalMap':'roughnessMap']=texture;
-    }
-    else uniforms[(id==='coast_sand_01'?'sand':'forest')+{diff:'Colour',nor_gl:'Normal',rough:'Rough'}[kind]].value=texture;
-   }
-   updateDetail();
-   onReady();
-  }).catch(error=>{failures++;console.warn('Harbour terrain fallback:',error.message);})
-   .finally(()=>{pending--;canvas.dataset.harbourTerrain=pending?'loading':failures?'fallback':'ready';});
- }
- return {material,onReady(callback){onReady=callback;},setQuality(value){quality=value;stage('colour',['diff']);if(quality==='high')stage('detail',['nor_gl','rough']);updateDetail();onReady();},sand:{get colour(){return uniforms.sandColour.value;},get normal(){return quality==='high'?uniforms.sandNormal.value:null;},get rough(){return quality==='high'?uniforms.sandRough.value:null;}}};
+ const loader=new THREE.TextureLoader();canvas.dataset.harbourTerrain='loading';
+ const ready=Promise.all(['sparse_grass','coast_sand_01','forrest_ground_01'].flatMap(id=>['diff','nor_gl','rough'].map(async kind=>{
+  const t=await loader.loadAsync(ASSETS[`${id}_${kind}_1k.jpg`].url);t.colorSpace=kind==='diff'?THREE.SRGBColorSpace:THREE.NoColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(.42,.42);t.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());return {id,kind,t};
+ }))).then(textures=>{for(const {id,kind,t} of textures){if(id==='sparse_grass')material[{diff:'map',nor_gl:'normalMap',rough:'roughnessMap'}[kind]]=t;else {const layer=id==='coast_sand_01'?'sand':'forest';uniforms[layer+{diff:'Colour',nor_gl:'Normal',rough:'Rough'}[kind]].value=t;}}material.needsUpdate=true;canvas.dataset.harbourTerrain='ready';}).catch(error=>{canvas.dataset.harbourTerrain='fallback';console.warn('Harbour terrain fallback:',error.message);});
+ return {material,ready,sand:{get colour(){return uniforms.sandColour.value;},get normal(){return uniforms.sandNormal.value;},get rough(){return uniforms.sandRough.value;}}};
 }

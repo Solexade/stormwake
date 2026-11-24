@@ -81,39 +81,10 @@ test('harbour rock clusters keep conservative bounds outside traversal',()=>{
 
 test('quality-specific assets survive a late high load and reuse cached variants',async()=>{
  const scene=new THREE.Scene(),canvas={dataset:{}},fallback=new THREE.Group();scene.add(fallback);let resolveHigh,calls=[];
- const assets=createHarbourAssets(scene,canvas,async id=>{calls.push(id);if(id==='high')await new Promise(r=>resolveHigh=r);return prop();},undefined,{initial:'high'});
+ const assets=createHarbourAssets(scene,canvas,async id=>{calls.push(id);if(id==='high')await new Promise(r=>resolveHigh=r);return prop();});
  const high=assets.add({high:'high',medium:'medium'},fallback,{x:0,z:0,height:2});await Promise.resolve();
  await assets.setQuality('medium');resolveHigh();await high;
  assert.equal(scene.children.filter(n=>n.visible).length,1);assert.equal(fallback.visible,false);
  await assets.setQuality('low');assert.equal(fallback.visible,true);assert.equal(scene.children.filter(n=>n.visible).length,1);
  await assets.setQuality('high');await assets.setQuality('medium');assert.deepEqual(calls,['high','medium']);
-});
-
-test('scenery streams two nearby props at a time and restores fallbacks when leaving',async()=>{
- const scene=new THREE.Scene(),canvas={dataset:{}},calls=[],done=new Map();
- const assets=createHarbourAssets(scene,canvas,id=>{
-  calls.push(id);
-  return new Promise(resolve=>done.set(id,resolve));
- },undefined,{stream:true,initial:'medium'});
- const add=(id,x)=>{
-  const fallback=new THREE.Group();
-  scene.add(fallback);
-  assets.add(id,fallback,{x,z:0,height:2});
-  return fallback;
- };
- const near=add('near',1);add('second',4);add('third',8);const distant=add('distant',85);
- assert.deepEqual(calls,[]);
- assets.update(0,0,26,0);await Promise.resolve();
- assert.deepEqual(calls,['near','second']);
- assets.update(0,0,26,.2);await Promise.resolve();
- assert.equal(calls.length,2);
- done.get('near')(prop());done.get('second')(prop());
- await new Promise(resolve=>setImmediate(resolve));
- assert.equal(near.visible,false);
- assets.update(85,0,26,.4);await Promise.resolve();
- assert.equal(near.visible,true);assert.equal(distant.visible,true);
- assert.deepEqual(calls,['near','second','distant']);
- done.get('distant')(prop());await new Promise(resolve=>setImmediate(resolve));
- assert.equal(distant.visible,false);
- await assets.setQuality('low');assert.equal(distant.visible,true);
 });
