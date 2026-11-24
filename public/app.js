@@ -26,7 +26,7 @@ function pressAction(action){
  }
 }
 const $=id=>document.getElementById(id), canvas=$('world');
-let world3d=null,preparingWorld=null,startingRun=false,launchAt=null;
+let world3d=null,startingRun=false;
 let profile=null,community={salvage:0,target:1500},leaders=[],run=null,playing=false,lastEvent=0,lastStatus='',lastTime=0,viewW=900,viewH=650,dpr=1;
 let camera={x:1150,y:1070},zoom=.67,networkBusy=false,networkErrors=0,mouse={x:0,y:0,active:false},keys=new Set(),touch={dx:0,dy:0,attack:false,dodge:false,storm:false,interact:false};
 let aim=-Math.PI/2,playerVisual={...HOME},enemyVisual=new Map(),audio=null,sound=false,toastTimer,messageTimer,ravenTimer,dialogKind='',lastFrame=performance.now();
@@ -52,27 +52,31 @@ async function begin(){
  if(!profile){toast('Connecting to the game server. Please try again.');return;}
  if(!profile.usernameCreated){showUsername(true);return;}
  startingRun=true;
- launchAt=performance.now();
- const buttons=[$('startBtn'),$('chapterDeploy')];
- const labels=buttons.map(button=>button.innerHTML);
+ const buttons=[$('startBtn'),$('chapterDeploy')],labels=buttons.map(button=>button.innerHTML);
  const arena=arenaPicker.selected;
  buttons.forEach(button=>{button.disabled=true;button.textContent='Loading arena…';});
  if(!sound)enableSound();
  try{
   await prepareWorld();
-  // The server starts the wave after the renderer is ready for input.
   const data=await api('start',{arena});
   run=data.run;syncWeapons();movementPreview.sync(run,performance.now());setPlaying(true);
   raven('Land three hits to charge Stormbreaker, then tap Combo. Tap nearby prompts to open caches and shops.');
   message(run.mode==='survival'?'SURVIVAL · HOLD THE LINE':'CHAPTER '+(run.chapter||1)+' · '+chapterNames[(run.chapter||1)-1]);
- }catch(error){launchAt=null;toast(error.message);}
+ }catch(error){toast(error.message);}
  finally{buttons.forEach((button,i)=>{button.disabled=false;button.innerHTML=labels[i];});startingRun=false;}
 }
 const chapterNames=REGIONS.map(r=>r.name);
 let introSeen=false;
 function chapterBoard(){document.querySelectorAll('[data-chapter]').forEach(card=>{card.classList.remove('chapter-current');card.querySelector('small').textContent='OPEN DISTRICT · WALK OR SAIL';});const best=profile?.gear?.survival;if(best)$('ravenLine').textContent='Personal best: '+best.bestKills+' bots · wave '+best.bestWave+' · '+best.bestSeconds+' seconds.';}
 
-async function launchStory(){if(!profile)await initialState;if(!profile){toast('The game server is unavailable. Try again when it reconnects.');return;}if(!profile.usernameCreated){showUsername(true);return;}if(introSeen||run?.status==='active'){begin();return;}if($('storyIntro').open)return;import('./scene3d.js').catch(()=>{});await prologue();introSeen=true;begin();}
+async function launchStory(){
+ if(!profile)await initialState;
+ if(!profile){toast('The game server is unavailable. Try again when it reconnects.');return;}
+ if(!profile.usernameCreated){showUsername(true);return;}
+ if(introSeen||run?.status==='active'){begin();return;}
+ if($('storyIntro').open)return;
+ await prologue();introSeen=true;begin();
+}
 function prologue(){return new Promise(resolve=>{
  const frames=[['Before the fracture','The Heartbeat held the Shattered Isles together. Our heroes guarded a world of timber, iron and tides.'],['Something crossed the storm','Rogue machines arrived from an age that had not happened yet. They came to steal the Heartbeat before their own future could be written.'],['The harbour fell first','Scouts marked the shore. Siege machines followed. The survivors called for the Awakened.'],['We hold the line','The machines will not stop coming. Explore the city, find supplies and survive as many waves as you can.']];
  const supported='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
@@ -172,27 +176,38 @@ $('weaponSelect').onchange=async()=>{try{const data=await api('weapon/equip',{we
 $('orbitLeft').onclick=()=>{orbit-=Math.PI/4;world3d?.setOrbit(orbit);};$('orbitRight').onclick=()=>{orbit+=Math.PI/4;world3d?.setOrbit(orbit);};
 $('touchToggle').onclick=()=>{touchEnabled=!touchEnabled;$('touchControls').classList.toggle('hidden',!playing||!touchEnabled);$('touchToggle').setAttribute('aria-pressed',String(touchEnabled));resetInput();};
 $('bloodToggle').onclick=()=>{bloodFX=!bloodFX;$('bloodToggle').textContent='Blood FX: '+(bloodFX?'on':'off');$('bloodToggle').setAttribute('aria-pressed',String(bloodFX));};
-// The arena picker and saved profile don't depend on WebGL or 3D assets.
-let cameraMode='follow',detail=initialQuality(isTouch);
-$('qualityBtn').textContent=detail[0].toUpperCase()+detail.slice(1)+' detail';
-function prepareWorld(){
- if(world3d)return Promise.resolve();
- if(preparingWorld)return preparingWorld;
+const graphicsPicker=$('graphicsMode'),graphicsButton=$('qualityBtn');
+let cameraMode='follow',detail=initialQuality();
+function setGraphics(value){
+ detail=value;
+ graphicsPicker.value=detail;
+ graphicsButton.textContent=graphicsPicker.selectedOptions[0].textContent;
+ if($('pauseGraphics'))$('pauseGraphics').value=detail;
+ world3d?.setQuality(detail);
+}
+function chooseGraphics(value){
+ try{localStorage.setItem('stormwake.graphics',value);}catch{}
+ setGraphics(value);
+}
+setGraphics(detail);
+graphicsPicker.onchange=()=>chooseGraphics(graphicsPicker.value);
+async function prepareWorld(){
+ if(world3d)return;
  const status=$('sceneStatus');
  status.textContent='Loading arena…';status.classList.remove('hidden');
- preparingWorld=import('./scene3d.js').then(({createWorld})=>{
+ try{
+  const {createWorld}=await import('./scene3d.js');
   world3d=createWorld(canvas,detail);
-  world3d.setMode(cameraMode);world3d.setOrbit(orbit);
+  world3d.setMode(cameraMode);world3d.setOrbit(orbit);world3d.setQuality(detail);
   status.classList.add('hidden');
- }).catch(error=>{
+ }catch(error){
   console.error('3D initialization:',error);
   status.textContent='3D could not start. Try a WebGL 2 browser with hardware acceleration.';
   throw Error(status.textContent);
- }).finally(()=>{preparingWorld=null;});
- return preparingWorld;
+ }
 }
 $('cameraBtn').onclick=()=>{cameraMode=({follow:'tactical',tactical:'scenic',scenic:'follow'})[cameraMode];world3d?.setMode(cameraMode);$('cameraBtn').textContent=({follow:'Tactical view',tactical:'Scenic view',scenic:'Follow view'})[cameraMode];};
-$('qualityBtn').onclick=()=>{detail=({high:'medium',medium:'low',low:'high'})[detail]||'low';try{localStorage.setItem('stormwake.graphics',detail);}catch{};world3d?.setQuality(detail);$('qualityBtn').textContent=detail[0].toUpperCase()+detail.slice(1)+' detail';};
+$('qualityBtn').onclick=()=>chooseGraphics(({high:'medium',medium:'low',low:'high'})[detail]);
 canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();resetInput();$('sceneStatus').textContent='Graphics paused. Reload this page to restore the 3D scene.';$('sceneStatus').classList.remove('hidden');});
 let performanceStart=performance.now(),performanceFrames=0;
 function render(now){
@@ -205,7 +220,6 @@ function render(now){
  soundtrack.update(displayRun?.player,playing&&!run?.paused&&!$('modal').open,run?.boss?.awake&&!run?.bossDead,document.hidden,run);
  if(world3d&&playing&&!document.hidden){
   world3d.draw(now/1000,dt,displayRun,playing,community,{lockedTarget,bloodFX,reducedMotion});
-  if(launchAt!==null){canvas.dataset.launchMs=String(Math.round(performance.now()-launchAt));launchAt=null;}
   performanceFrames++;
   if(now-performanceStart>=1000){
    const info=world3d.getInfo();
@@ -233,13 +247,13 @@ async function openPause(tasks=false){
  if(pauseBusy||!playing||run?.status!=='active')return;
  pauseBusy=true;resetInput();
  try{const data=await api('pause',{paused:true});acceptRun(data.run);
- modal('<span class="modal-eyebrow">SURVIVAL PAUSED</span><h2>'+ (tasks?'Your next chapter':'Catch your breath.')+'</h2><p>'+escape($('areaSub').textContent)+'</p>'+(tasks?'<ol class="pause-objectives">'+$('objectives').innerHTML+'</ol>':'<p>WASD / arrows move · Shift sprints · J, J, K combos · Space rolls · F guards · E interacts · 1–5 change weapon.</p><p>On touch screens, drag the left stick; the outer edge sprints. Strike follows your chain and becomes Finisher when charged. Hold Guard to parry; Roll evades. The arrows above the stick rotate the camera.</p>')+'<button class="primary" id="resumePlay">Resume run ↗</button><button class="secondary" id="pauseHarbour">Return to harbour</button><div id="audioMixMount"></div><div class="pause-settings"><button id="pauseSound">Sound: '+(sound?'on':'off')+'</button><button id="motionSetting">Motion: '+(reducedMotion?'reduced':'full')+'</button><button id="pauseQuality">Graphics: '+detail+'</button><button id="musicSetting">Music: '+(soundtrack.music?'on':'off')+'</button><button id="pauseBlood">Blood FX: '+(bloodFX?'on':'off')+'</button></div><p>Closing this menu resumes play. Your profile saves automatically. My save provides recovery and restore options.</p>','pause');
+ modal('<span class="modal-eyebrow">SURVIVAL PAUSED</span><h2>'+ (tasks?'Your next chapter':'Catch your breath.')+'</h2><p>'+escape($('areaSub').textContent)+'</p>'+(tasks?'<ol class="pause-objectives">'+$('objectives').innerHTML+'</ol>':'<p>WASD / arrows move · Shift sprints · J, J, K combos · Space rolls · F guards · E interacts · 1–5 change weapon.</p><p>On touch screens, drag the left stick; the outer edge sprints. Strike follows your chain and becomes Finisher when charged. Hold Guard to parry; Roll evades. The arrows above the stick rotate the camera.</p>')+'<button class="primary" id="resumePlay">Resume run ↗</button><button class="secondary" id="pauseHarbour">Return to harbour</button><label for="pauseGraphics">Graphics mode<select id="pauseGraphics">'+graphicsPicker.innerHTML+'</select></label><div id="audioMixMount"></div><div class="pause-settings"><button id="pauseSound">Sound: '+(sound?'on':'off')+'</button><button id="motionSetting">Motion: '+(reducedMotion?'reduced':'full')+'</button><button id="musicSetting">Music: '+(soundtrack.music?'on':'off')+'</button><button id="pauseBlood">Blood FX: '+(bloodFX?'on':'off')+'</button></div><p>Closing this menu resumes play. Your profile saves automatically. My save provides recovery and restore options.</p>','pause');
  $('resumePlay').onclick=closeModal;$('pauseHarbour').onclick=()=>$('harbourNav').click();
  $('audioMixMount').innerHTML=mixerMarkup();bindMixer(soundtrack.mixer);
  $('musicSetting').onclick=()=>{soundtrack.music=!soundtrack.music;$('musicSetting').textContent='Music: '+(soundtrack.music?'on':'off');};
  $('pauseSound').onclick=()=>{$('soundBtn').click();$('pauseSound').textContent='Sound: '+(sound?'on':'off');};
  $('motionSetting').onclick=()=>{reducedMotion=!reducedMotion;document.body.classList.toggle('reduced-motion',reducedMotion);$('motionSetting').textContent='Motion: '+(reducedMotion?'reduced':'full');};
- $('pauseQuality').onclick=()=>{$('qualityBtn').click();$('pauseQuality').textContent='Graphics: '+detail;};
+ const pauseGraphics=$('pauseGraphics');pauseGraphics.value=detail;pauseGraphics.onchange=()=>chooseGraphics(pauseGraphics.value);
  $('pauseBlood').onclick=()=>{$('bloodToggle').click();$('pauseBlood').textContent='Blood FX: '+(bloodFX?'on':'off');};
  }catch(e){toast(e.message);}finally{pauseBusy=false;}
 }

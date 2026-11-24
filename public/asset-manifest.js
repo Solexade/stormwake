@@ -211,17 +211,6 @@ export const ASSETS = Object.freeze({
   "provenance": "Supplied by project owner 2026-10-17 for Stormwake visual direction",
   "conversion": "Unchanged PNG; reference illustration, not a playable model"
 },
-"stormwake_reference_web.jpg":{
-  "url": "/assets/stormwake_reference_web.jpg",
-  "type": "jpg",
-  "bytes": 342628,
-  "sha256": "7aa7c37e3731696fcff3e2b1230aa091c94788cf4ca307e4c661ccb208395830",
-  "license": "User-provided project reference; independent rights not verified",
-  "creator": "User-provided artwork",
-  "source": "public/assets/stormwake_reference.png",
-  "provenance": "Derived from the project owner's existing Stormwake reference",
-  "conversion": "1280 × 853 JPEG, quality 85"
-},
 "stormwake_crest.png":{
   "url": "/assets/stormwake_crest.png",
   "type": "png",
